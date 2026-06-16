@@ -19,6 +19,12 @@ export interface UnknownKey {
   sampleDescription: string;
   suggestedKind: 'income' | 'expense';
   count: number;
+  /** Поля одной из операций — для крупного отображения карточки в UI. */
+  sampleDate: string;
+  sampleAmount: number;
+  sampleCurrency: string;
+  sampleBank: Bank;
+  sampleAccountIban: string;
 }
 
 export interface FxNeed {
@@ -91,6 +97,11 @@ export async function prepareImport(text: string, fileName: string): Promise<Imp
             sampleDescription: t.counterpartyName ?? t.rawDescription,
             suggestedKind: suggestedKind(t),
             count: 1,
+            sampleDate: t.bookingDate,
+            sampleAmount: t.amount,
+            sampleCurrency: t.currency,
+            sampleBank: bank,
+            sampleAccountIban: primaryIban,
           });
       }
     }
