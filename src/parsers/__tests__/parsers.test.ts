@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import { zipSync, strToU8 } from 'fflate';
 import { parse as parseDB, detect as detectDB } from '../deutscheBank';
 import { parse as parseTR, detect as detectTR } from '../tradeRepublic';
+import { parse as parseTRCsv, detect as detectTRCsv } from '../tradeRepublicCsv';
 import { parse as parseRev, detect as detectRev } from '../revolut';
+import { parse as parseRevXlsx, detect as detectRevXlsx } from '../revolutXlsx';
+import { readXlsx } from '../xlsx';
 
 // Все фикстуры — синтетические (выдуманные имена/IBAN), имитируют формат
 // извлечения текста pdf.js (склейка токенов).
@@ -250,5 +254,135 @@ describe('Revolut parser (Account statement)', () => {
     expect(refund.balanceAfter).toBeCloseTo(100);
     expect(refund.type).toBe('card');
     expect(refund.isTransfer).toBe(false);
+  });
+});
+
+// CSV-экспорт Trade Republic: amount уже со знаком, fee/tax — отдельные колонки,
+// фактическое движение по счёту = amount + fee + tax. У каждой строки есть transaction_id.
+const TR_CSV = [
+  '"datetime","date","account_type","category","type","asset_class","name","symbol","shares","price","amount","fee","tax","currency","original_amount","original_currency","fx_rate","description","transaction_id","counterparty_name","counterparty_iban","payment_reference","mcc_code"',
+  '"2024-10-11T12:22:19Z","2024-10-11","DEFAULT","CASH","TRANSFER_INBOUND","","","","","","110.000000","","","EUR","","","","Incoming transfer from Test Person","id-1","","","",""',
+  '"2024-10-16T09:15:04Z","2024-10-16","DEFAULT","TRADING","BUY","FUND","S&P 500","IE00B3WJKG14","3.0","30.10","-90.30","-1.00","","EUR","","","","Buy trade IE00B3WJKG14, quantity: 3","id-2","","","",""',
+  '"2024-11-14T00:00:00Z","2024-11-14","DEFAULT","CASH","DIVIDEND","STOCK","Verizon","US92343V1044","64.75","","38.33","","-5.75","EUR","43.87","USD","0.873668","Cash Dividend for ISIN US92343V1044","id-3","","","",""',
+  '"2024-10-28T00:00:00Z","2024-10-28","DEFAULT","CASH","CARD_TRANSACTION","","Ullrich Berlin-Zoo","","","","-18.070000","","","EUR","","","","TR Card Transaction","id-4","","","","5411"',
+  '"2025-01-17T00:00:00Z","2025-01-17","DEFAULT","CASH","TRANSFER_OUTBOUND","","","","","","-19.000000","","","EUR","","","","Outgoing transfer for Jane Doe","id-5","Jane Doe","DE99888877776666555544","",""',
+].join('\n');
+
+describe('Trade Republic CSV parser', () => {
+  it('детектирует формат и не путает с другими', () => {
+    expect(detectTRCsv(TR_CSV)).toBe(true);
+    expect(detectTRCsv(TR_TEXT)).toBe(false);
+    expect(detectTR(TR_CSV)).toBe(false);
+  });
+
+  it('парсит суммы (с комиссией/налогом), типы и контрагента', () => {
+    const r = parseTRCsv(TR_CSV);
+    expect(r.account.bank).toBe('trade_republic');
+    expect(r.transactions).toHaveLength(5);
+
+    const [transfer, buy, dividend, card, out] = r.transactions;
+
+    expect(transfer.type).toBe('transfer');
+    expect(transfer.isTransfer).toBe(true);
+    expect(transfer.amount).toBeCloseTo(110);
+    expect(transfer.externalId).toBe('id-1');
+
+    // amount + fee = -90.30 + (-1.00).
+    expect(buy.type).toBe('trade');
+    expect(buy.amount).toBeCloseTo(-91.3);
+
+    // amount + tax = 38.33 + (-5.75) — чистый дивиденд после удержания налога.
+    expect(dividend.type).toBe('dividend');
+    expect(dividend.amount).toBeCloseTo(32.58);
+    expect(dividend.currency).toBe('EUR');
+
+    expect(card.type).toBe('card');
+    expect(card.amount).toBeCloseTo(-18.07);
+
+    expect(out.type).toBe('transfer');
+    expect(out.amount).toBeCloseTo(-19);
+    expect(out.counterpartyName).toBe('Jane Doe');
+    expect(out.counterpartyIban).toBe('DE99888877776666555544');
+  });
+});
+
+// XLSX-выписка Revolut: секции по счетам/валютам, даты — серийные числа Excel,
+// в не-EUR суммах рядом с исходной печатается EUR-эквивалент "$X (€Y)".
+const REV_XLSX_ROWS: string[][] = [
+  ['Current Accounts Summaries'],
+  ['Personal Account (EUR)'],
+  ['Account Number (DE IBAN)', 'DE00111122223333444455'],
+  ['Financial institution name', 'Revolut Bank UAB, Zweigniederlassung Deutschland'],
+  ['---------'],
+  ['Current Accounts Transaction Statements'],
+  ['Personal Account (EUR)'],
+  ['Transaction statement'],
+  ['Date', 'Description', 'Category', 'Money in/out', 'Balance', 'Tax withheld', 'Other taxes', 'Fees'],
+  ['44775', 'Payment from John Doe', 'Top up', '10.0', '10.0', '0.0', '0.0', '0.0'],
+  ['44776', "McDonald's", 'Merchant', '-9.59', '0.41', '0.0', '0.0', '0.0'],
+  ['44777', 'Exchanged to USD', 'Exchange', '-5.0', '-4.59', '0.0', '0.0', '0.0'],
+  ['Total', '-4.59', '0.0', '0.0', '0.0'],
+  ['---------'],
+  ['Personal Account (USD)'],
+  ['Transaction statement'],
+  ['Date', 'Description', 'Category', 'Money in/out', 'Balance', 'Tax withheld', 'Other taxes', 'Fees'],
+  ['44778', 'Carrefour', 'Merchant', '-$48.32 (-€41.23)', '$9,033.55 (€7,707.15)', '$0.00 (€0.00)', '$0.00 (€0.00)', '$0.48 (€0.41)'],
+  ['Total', '$9,033.55 (€7,707.15)', '$0.00 (€0.00)', '$0.00 (€0.00)', '$0.48 (€0.41)'],
+  ['---------'],
+  ['Savings Accounts Transaction Statements'],
+];
+
+describe('Revolut XLSX parser', () => {
+  it('детектирует формат', () => {
+    expect(detectRevXlsx(REV_XLSX_ROWS)).toBe(true);
+  });
+
+  it('парсит секции по валютам, EUR-эквивалент и внутренний обмен', () => {
+    const r = parseRevXlsx(REV_XLSX_ROWS);
+    expect(r.account.bank).toBe('revolut');
+    expect(r.account.ibans).toContain('DE00111122223333444455');
+    expect(r.transactions).toHaveLength(4);
+
+    const [topup, merchant, exchange, usd] = r.transactions;
+
+    expect(topup.currency).toBe('EUR');
+    expect(topup.amount).toBeCloseTo(10);
+    expect(topup.isTransfer).toBe(true);
+    expect(topup.counterpartyName).toBe('John Doe');
+
+    expect(merchant.type).toBe('card');
+    expect(merchant.amount).toBeCloseTo(-9.59);
+    expect(merchant.counterpartyName).toBe("McDonald's");
+
+    // Обмен валют — внутренний перевод на собственный счёт (по IBAN).
+    expect(exchange.isTransfer).toBe(true);
+    expect(exchange.counterpartyIban).toBe('DE00111122223333444455');
+
+    // Не-EUR: исходная сумма + готовый EUR-эквивалент из выписки.
+    expect(usd.currency).toBe('USD');
+    expect(usd.amount).toBeCloseTo(-48.32);
+    expect(usd.eurAmountHint).toBeCloseTo(-41.23);
+    expect(usd.balanceAfter).toBeCloseTo(9033.55);
+    expect(usd.type).toBe('card');
+  });
+});
+
+describe('readXlsx', () => {
+  it('читает ячейки: shared strings, числа, inline strings, XML-сущности', () => {
+    const sharedStrings =
+      '<?xml version="1.0"?><sst><si><t>Hello</t></si><si><t>World &amp; Co</t></si></sst>';
+    const sheet =
+      '<?xml version="1.0"?><worksheet><sheetData>' +
+      '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1"><v>44775</v></c></row>' +
+      '<row r="2"><c r="A2" t="inlineStr"><is><t>Inline</t></is></c></row>' +
+      '</sheetData></worksheet>';
+    const zip = zipSync({
+      'xl/sharedStrings.xml': strToU8(sharedStrings),
+      'xl/worksheets/sheet1.xml': strToU8(sheet),
+    });
+    const ab = zip.buffer.slice(zip.byteOffset, zip.byteOffset + zip.byteLength);
+    const rows = readXlsx(ab as ArrayBuffer);
+    expect(rows[0]).toEqual(['Hello', 'World & Co', '44775']);
+    expect(rows[1]).toEqual(['Inline']);
   });
 });

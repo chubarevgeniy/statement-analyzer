@@ -12,6 +12,9 @@ function normDesc(s: string): string {
  * уникальными даже одинаковые повторяющиеся платежи в один день.
  */
 export function computeTxnId(bank: Bank, accountIban: string, t: ParsedTxn): string {
+  // Если у выписки есть собственный стабильный id операции (CSV Trade Republic) —
+  // используем его: это надёжнее, чем эвристика по сумме/балансу/описанию.
+  if (t.externalId) return [bank, accountIban, 'id', t.externalId].join('|');
   const bal = t.balanceAfter != null ? toCents(t.balanceAfter) : 'NA';
   return [
     bank,

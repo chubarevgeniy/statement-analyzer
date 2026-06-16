@@ -4,7 +4,10 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { ParseResult } from './types';
 import * as deutscheBank from './deutscheBank';
 import * as tradeRepublic from './tradeRepublic';
+import * as tradeRepublicCsv from './tradeRepublicCsv';
 import * as revolut from './revolut';
+import * as revolutXlsx from './revolutXlsx';
+import { readXlsx } from './xlsx';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -37,7 +40,9 @@ export async function extractText(file: ArrayBuffer): Promise<string> {
   return pages.join('\n');
 }
 
-const PARSERS = [deutscheBank, tradeRepublic, revolut];
+// Текстовые парсеры (PDF и CSV дают текст). CSV ставим первым: его заголовок
+// опознаётся однозначно и не пересекается с PDF-форматами.
+const PARSERS = [tradeRepublicCsv, deutscheBank, tradeRepublic, revolut];
 
 /** Определяет банк и парсит текст выписки. Бросает ошибку, если формат неизвестен. */
 export function parseStatement(text: string): ParseResult {
@@ -45,4 +50,26 @@ export function parseStatement(text: string): ParseResult {
     if (p.detect(text)) return p.parse(text);
   }
   throw new Error('Неизвестный формат выписки. Поддерживаются Deutsche Bank, Trade Republic, Revolut.');
+}
+
+/**
+ * Разбирает загруженный файл в зависимости от его типа:
+ * - .csv — экспорт транзакций (Trade Republic);
+ * - .xlsx — консолидированная выписка Revolut;
+ * - иначе — PDF (текст извлекается через pdf.js).
+ */
+export async function parseFile(file: File): Promise<ParseResult> {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.csv') || file.type === 'text/csv') {
+    return parseStatement(await file.text());
+  }
+  if (name.endsWith('.xlsx') || file.type.includes('spreadsheetml')) {
+    const rows = readXlsx(await file.arrayBuffer());
+    if (!revolutXlsx.detect(rows)) {
+      throw new Error('Неизвестный формат XLSX. Поддерживается консолидированная выписка Revolut.');
+    }
+    return revolutXlsx.parse(rows);
+  }
+  const text = await extractText(await file.arrayBuffer());
+  return parseStatement(text);
 }

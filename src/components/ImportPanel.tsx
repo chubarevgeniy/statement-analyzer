@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { extractText } from '../parsers';
+import { parseFile } from '../parsers';
 import { commitImport, prepareImport, type ImportPrep, type UnknownKey } from '../services/import';
 import { lookupRate } from '../services/fx';
 import { putCategory } from '../db/categoriesDb';
@@ -65,9 +65,8 @@ export function ImportPanel({
 
     for (const file of staged) {
       try {
-        const buf = await file.arrayBuffer();
-        const text = await extractText(buf);
-        const prep = await prepareImport(text, file.name);
+        const res = await parseFile(file);
+        const prep = await prepareImport(res, file.name);
         if (prep.alreadyImported && prep.newCount === 0) {
           doneReports.push({
             fileName: file.name,
@@ -205,14 +204,15 @@ export function ImportPanel({
     <div className="panel">
       <h2>Импорт выписок</h2>
       <p className="muted">
-        Поддерживаются PDF Deutsche Bank, Trade Republic и Revolut. Данные обрабатываются только в
-        вашем браузере и никуда не отправляются.
+        Поддерживаются PDF Deutsche Bank, Trade Republic и Revolut, а также CSV-экспорт Trade
+        Republic и XLSX-выписка Revolut. Данные обрабатываются только в вашем браузере и никуда не
+        отправляются.
       </p>
 
       <label className={`dropzone ${busy ? 'busy' : ''}`}>
         <input
           type="file"
-          accept="application/pdf"
+          accept=".pdf,.csv,.xlsx,application/pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           multiple
           disabled={busy}
           onChange={(e) => {
@@ -222,7 +222,7 @@ export function ImportPanel({
         />
         <span className="dropzone-icon">📄</span>
         <span className="dropzone-text">
-          {staged.length > 0 ? 'Добавить ещё файлы' : 'Выберите PDF-выписки'}
+          {staged.length > 0 ? 'Добавить ещё файлы' : 'Выберите выписки (PDF / CSV / XLSX)'}
         </span>
         <span className="muted small">
           Загрузите выписки всех счетов сразу — так внутренние переводы определятся автоматически.
