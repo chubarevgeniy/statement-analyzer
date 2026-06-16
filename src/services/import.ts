@@ -1,5 +1,4 @@
-import { parseStatement } from '../parsers';
-import type { ParsedTxn } from '../parsers/types';
+import type { ParseResult, ParsedTxn } from '../parsers/types';
 import { normalizeName } from '../parsers/util';
 import type { Account, Bank, Mapping, StatementMeta, StoredTxn } from '../types';
 import {
@@ -48,9 +47,8 @@ export interface ImportPrep {
   periodEnd?: string;
 }
 
-/** Парсит текст выписки и готовит черновики транзакций к импорту. */
-export async function prepareImport(text: string, fileName: string): Promise<ImportPrep> {
-  const res = parseStatement(text);
+/** Готовит черновики транзакций к импорту из уже разобранной выписки. */
+export async function prepareImport(res: ParseResult, fileName: string): Promise<ImportPrep> {
   const bank = res.account.bank;
   const owner = res.account.holderName ? normalizeName(res.account.holderName) : 'неизвестно';
   const primaryIban = res.account.ibans[0] ?? `${bank}-unknown`;
@@ -192,10 +190,19 @@ export async function commitImport(prep: ImportPrep, opts: CommitOptions = {}): 
     }
   }
 
-  // Дозаписываем счета (мерджим владельца с уже известными).
+  // Дозаписываем счета (мерджим владельца с уже известными). Если у новой записи
+  // нет имени владельца (CSV/XLSX без шапки), а у известной есть — сохраняем старое,
+  // чтобы безымянный импорт не сбрасывал ранее определённый профиль.
   const existingAccounts = await getAllAccounts();
   const accMap = new Map(existingAccounts.map((a) => [a.iban, a]));
-  for (const a of prep.accounts) accMap.set(a.iban, a);
+  for (const a of prep.accounts) {
+    const prev = accMap.get(a.iban);
+    if (prev && prev.holderName && !a.holderName) {
+      accMap.set(a.iban, { ...a, holderName: prev.holderName, owner: prev.owner });
+    } else {
+      accMap.set(a.iban, a);
+    }
+  }
 
   await putAccounts(Array.from(accMap.values()));
   for (const m of dedupeMappings(newMappings)) await putMapping(m);

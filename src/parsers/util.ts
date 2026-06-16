@@ -66,3 +66,59 @@ export function isoDate(year: number, month: number, day: number): string {
   const dd = String(day).padStart(2, '0');
   return `${year}-${mm}-${dd}`;
 }
+
+/**
+ * Конвертирует серийную дату Excel (число дней от 1899-12-30) в ISO YYYY-MM-DD.
+ * Используется в XLSX-выписках Revolut, где даты хранятся числами (напр. 44775 → 2022-07-06).
+ */
+export function excelSerialToIso(serial: number): string {
+  const ms = Math.round(serial) * 86_400_000 + Date.UTC(1899, 11, 30);
+  const d = new Date(ms);
+  return isoDate(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+}
+
+/**
+ * Минимальный парсер CSV (RFC 4180): поддерживает кавычки, экранированные кавычки ("")
+ * и переводы строк внутри полей. Возвращает массив строк-массивов ячеек.
+ */
+export function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  // Нормализуем переводы строк.
+  const s = text.replace(/\r\n?/g, '\n');
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (s[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      row.push(field);
+      field = '';
+    } else if (ch === '\n') {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
+    } else {
+      field += ch;
+    }
+  }
+  // Последнее поле/строка (если файл не заканчивается переводом строки).
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
