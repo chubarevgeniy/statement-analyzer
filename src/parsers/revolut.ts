@@ -1,9 +1,20 @@
 import type { ParseResult, ParsedTxn, TxnType } from './types';
-import { isoDate, monthFromAbbrev, normalizeIban, parseUsAmount } from './util';
+import {
+  fromCents,
+  isoDate,
+  monthFromAbbrev,
+  normalizeIban,
+  parseUsAmount,
+  toCents,
+} from './util';
 
-// Парсер консолидированной выписки Revolut (Custom Statement).
-// Несколько секций по валютам/счетам; для не-EUR Revolut сам печатает EUR-эквивалент
-// рядом с исходной суммой — мы его и используем (конвертация курсами не нужна).
+// Revolut выпускает два разных PDF-формата выписок:
+// 1. "Custom Statement" — консолидированная выписка с секциями по валютам/счетам
+//    ("Personal Account (EUR)\nTransaction statement"); суммы со знаком, для не-EUR
+//    Revolut сам печатает EUR-эквивалент рядом с исходной суммой.
+// 2. "Account statement" — обычная выписка по одному счёту/валюте ("EUR Statement",
+//    "Account transactions from ... to ...", таблица "Date Description Money out
+//    Money in Balance"). Суммы без знака — направление определяем по разнице балансов.
 
 export function detect(text: string): boolean {
   return /Revolut Bank UAB/i.test(text) || /Custom Statement/i.test(text);
@@ -49,6 +60,13 @@ function stripCategory(desc: string): { clean: string; category: string | null }
 }
 
 export function parse(text: string): ParseResult {
+  if (/Account transactions from/i.test(text) && /Balance summary/i.test(text)) {
+    return parseAccountStatement(text);
+  }
+  return parseCustomStatement(text);
+}
+
+function parseCustomStatement(text: string): ParseResult {
   // IBAN(ы) и владелец из шапки.
   const ibans = Array.from(
     new Set(
@@ -150,5 +168,154 @@ export function parse(text: string): ParseResult {
   return {
     account: { bank: 'revolut', ibans, holderName },
     transactions: txns,
+  };
+}
+
+// Маркер начала строки операции в "Account statement": "Jan 4, 2026 Gepha €12.93 €785.69".
+// Якорим к началу строки — иначе встроенная дата в "Generated on the Jun 16, 2026"
+// (повторяется в колонтитуле каждой страницы) даёт ложные срабатывания.
+const ACCOUNT_DATE_LINE = /^([A-Za-z]{3,9})\.?\s+(\d{1,2}),\s+(\d{4})\s+(.*)$/;
+
+interface AccountTxnBlock {
+  date: string;
+  /** Остаток первой строки после даты: описание + сумма + баланс. */
+  rest: string;
+  /** Последующие строки до следующей операции (To/From/Card/Fee/Reference и т.п.). */
+  extra: string[];
+}
+
+function parseAccountStatement(text: string): ParseResult {
+  const ibans = Array.from(
+    new Set(
+      (text.match(/\b([A-Z]{2}\d{2}[0-9A-Z]{10,30})\b/g) ?? []).map((s) => normalizeIban(s)),
+    ),
+  );
+
+  const currencyMatch = text.match(/\b([A-Z]{3})\s+Statement\b/);
+  const currency = currencyMatch ? currencyMatch[1] : 'EUR';
+
+  // Имя владельца: строка прописными буквами прямо перед сводкой баланса.
+  const holderMatch = text.match(/\n([A-ZÄÖÜ][A-ZÄÖÜ' -]+[A-ZÄÖÜ])\n\s*Balance summary/);
+  const holderName = holderMatch ? holderMatch[1].trim() : null;
+
+  const periodMatch = text.match(
+    /Account transactions from\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})\s+to\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})/,
+  );
+  let periodStart: string | undefined;
+  let periodEnd: string | undefined;
+  if (periodMatch) {
+    const m1 = monthFromAbbrev(periodMatch[1].slice(0, 3));
+    const m2 = monthFromAbbrev(periodMatch[4].slice(0, 3));
+    if (m1 != null) periodStart = isoDate(+periodMatch[3], m1, +periodMatch[2]);
+    if (m2 != null) periodEnd = isoDate(+periodMatch[6], m2, +periodMatch[5]);
+  }
+
+  // Сводная строка "Total €863.35 €7,562.11 €6,753.00 €54.24" — открытие/закрытие баланса.
+  const summaryMatch = text.match(
+    /Total\s+€?([\d,]+\.\d{2})\s+€?([\d,]+\.\d{2})\s+€?([\d,]+\.\d{2})\s+€?([\d,]+\.\d{2})/,
+  );
+  const opening = summaryMatch ? parseUsAmount(summaryMatch[1]) : null;
+  const closing = summaryMatch ? parseUsAmount(summaryMatch[4]) : undefined;
+
+  // Берём только основную таблицу операций: от заголовка до секции "Reverted"
+  // (отменённые операции не меняют баланс и печатаются без колонки Balance).
+  const startIdx = text.search(/Account transactions from/i);
+  const revertedIdx = text.search(/\bReverted from\b/i);
+  const region = text.slice(
+    startIdx >= 0 ? startIdx : 0,
+    revertedIdx >= 0 ? revertedIdx : text.length,
+  );
+
+  // Группируем строки по операциям: новая операция начинается строкой с датой
+  // в начале (якорь ^), всё до следующей даты — её детали (To/From/Card/Fee/...).
+  const lines = region.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+  const blocks: AccountTxnBlock[] = [];
+  for (const line of lines) {
+    const m = line.match(ACCOUNT_DATE_LINE);
+    const month = m ? monthFromAbbrev(m[1].slice(0, 3)) : null;
+    if (m && month != null) {
+      blocks.push({ date: isoDate(+m[3], month, +m[2]), rest: m[4], extra: [] });
+      continue;
+    }
+    if (blocks.length) blocks[blocks.length - 1].extra.push(line);
+  }
+
+  const txns: ParsedTxn[] = [];
+  let prevCents = opening != null ? toCents(opening) : null;
+
+  for (const b of blocks) {
+    // На строке операции всегда ровно два денежных токена: сумма и баланс после неё.
+    // Дополнительные суммы (Fee:, Revolut Rate) находятся на отдельных строках extra
+    // и сюда не попадают.
+    const tokens: number[] = [];
+    let am: RegExpExecArray | null;
+    MONEY.lastIndex = 0;
+    while ((am = MONEY.exec(b.rest))) tokens.push(parseUsAmount(am[0]));
+    if (tokens.length < 2) continue; // не строка операции (например, обрывок шапки)
+
+    const rawAmount = tokens[0];
+    const balance = tokens[1];
+    const balCents = toCents(balance);
+    // Знак суммы по этому формату не печатается явно (отдельные колонки Money out/in),
+    // поэтому определяем его по изменению баланса — это надёжно работает и для
+    // возвратов (refund), которые приходят на тех же строках, что и покупки по карте.
+    const amount = prevCents != null ? fromCents(balCents - prevCents) : -rawAmount;
+    prevCents = balCents;
+
+    const firstMoneyIdx = b.rest.search(MONEY);
+    const desc = (firstMoneyIdx === -1 ? b.rest : b.rest.slice(0, firstMoneyIdx)).trim();
+
+    let counterpartyName: string | null = null;
+    for (const ex of b.extra) {
+      const cm = ex.match(/^(?:To|From):\s*(.+)$/i);
+      if (cm) {
+        counterpartyName = cm[1].trim();
+        break;
+      }
+    }
+
+    const hasCard = b.extra.some((l) => /^Card:/i.test(l));
+    const hasReference = b.extra.some((l) => /^Reference:/i.test(l));
+
+    let type: TxnType;
+    let isTransfer: boolean;
+    if (hasReference) {
+      // Перевод другому пользователю Revolut: описание — общее юрлицо банка,
+      // реального получателя/отправителя видно только по строке Reference/To/From.
+      type = 'transfer';
+      isTransfer = true;
+    } else if (hasCard) {
+      // Признак Card: однозначно указывает на покупку/возврат по карте — это надёжнее,
+      // чем угадывать по описанию (например, "Too Good To Go" содержит слово "to").
+      type = 'card';
+      isTransfer = false;
+    } else {
+      const base = classify(desc);
+      type = base.type;
+      isTransfer = base.isTransfer;
+    }
+    if (!counterpartyName && !isTransfer) counterpartyName = desc || null;
+
+    txns.push({
+      bookingDate: b.date,
+      valueDate: b.date,
+      amount,
+      currency,
+      rawDescription: desc.slice(0, 200),
+      counterpartyName,
+      counterpartyIban: null,
+      type,
+      isTransfer,
+      balanceAfter: balance,
+    });
+  }
+
+  return {
+    account: { bank: 'revolut', ibans, holderName },
+    transactions: txns,
+    periodStart,
+    periodEnd,
+    openingBalance: opening ?? undefined,
+    closingBalance: closing,
   };
 }
