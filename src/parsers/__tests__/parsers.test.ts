@@ -177,3 +177,78 @@ describe('Revolut parser', () => {
     expect(usd.balanceAfter).toBeCloseTo(9033.55);
   });
 });
+
+// "Account statement" — другой формат экспорта Revolut (одна валюта, без знака у суммы,
+// колонки Money out/Money in/Balance). Колонтитул с датой генерации повторяется на
+// каждой странице и должен игнорироваться при поиске операций.
+const REV_ACCOUNT_TEXT = [
+  'EUR Statement',
+  'Generated on the Jun 16, 2026',
+  'Revolut Bank UAB',
+  'Page of1 2',
+  'TEST PERSON',
+  'Balance summary',
+  'Product Opening balance Money out Money in Closing balance',
+  'Account (Current Account) €100.00 €60.00 €60.00 €100.00',
+  'Total €100.00 €60.00 €60.00 €100.00',
+  'Account transactions from January 1, 2026 to January 31, 2026',
+  'Date Description Money out Money in Balance',
+  'Jan 2, 2026 Glovo €20.00 €80.00',
+  'Revolut Rate €1.00 = 3.12 GEL (ECB rate* €1.00 = 3.16 GEL) 46.58 GEL',
+  'To: Glovoapp, Tbilisi, TB',
+  'Card: 535456******0582',
+  'Jan 5, 2026 Apple Pay top-up by *4412 €50.00 €130.00',
+  'From: *4412',
+  'Jan 10, 2026 Revolut Bank UAB Zweigniederlassung Deutschland €40.00 €90.00',
+  'Reference: To Jane D',
+  'To: JANE DOE',
+  'Jan 12, 2026 Too Good To Go €10.00 €100.00',
+  'To: Toogoodtogo, Berlin',
+  'Card: 535456******0582',
+  'EUR Statement',
+  'Generated on the Jun 16, 2026',
+  'Page of2 2',
+  'Reverted from January 1, 2026 to January 31, 2026',
+  'Start date Description Money out Money in',
+  'Jan 7, 2026 Some Cancelled Top-up €5.00',
+].join('\n');
+
+describe('Revolut parser (Account statement)', () => {
+  it('детектирует формат', () => {
+    expect(detectRev(REV_ACCOUNT_TEXT)).toBe(true);
+  });
+
+  it('парсит операции, игнорируя колонтитул и секцию Reverted', () => {
+    const r = parseRev(REV_ACCOUNT_TEXT);
+    expect(r.account.bank).toBe('revolut');
+    expect(r.account.holderName).toBe('TEST PERSON');
+    expect(r.periodStart).toBe('2026-01-01');
+    expect(r.periodEnd).toBe('2026-01-31');
+    expect(r.openingBalance).toBeCloseTo(100);
+    expect(r.closingBalance).toBeCloseTo(100);
+    expect(r.transactions).toHaveLength(4);
+
+    const [purchase, topup, transfer, refund] = r.transactions;
+
+    expect(purchase.amount).toBeCloseTo(-20);
+    expect(purchase.balanceAfter).toBeCloseTo(80);
+    expect(purchase.type).toBe('card');
+    expect(purchase.counterpartyName).toBe('Glovoapp, Tbilisi, TB');
+
+    expect(topup.amount).toBeCloseTo(50);
+    expect(topup.type).toBe('transfer');
+    expect(topup.isTransfer).toBe(true);
+    expect(topup.counterpartyName).toBe('*4412');
+
+    expect(transfer.amount).toBeCloseTo(-40);
+    expect(transfer.type).toBe('transfer');
+    expect(transfer.counterpartyName).toBe('JANE DOE');
+
+    // Описание содержит "to" как отдельное слово — наличие Card: должно
+    // переопределять эвристику по ключевым словам и не считать это переводом.
+    expect(refund.amount).toBeCloseTo(10);
+    expect(refund.balanceAfter).toBeCloseTo(100);
+    expect(refund.type).toBe('card');
+    expect(refund.isTransfer).toBe(false);
+  });
+});
