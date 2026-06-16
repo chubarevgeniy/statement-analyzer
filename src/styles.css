@@ -1,13 +1,39 @@
-:root {
-  --bg: #f4f6f8;
+/* ── Дизайн-токены ──
+   Тёмная тема — по умолчанию (современный «soft dark UI»: карточки на тёмно-синем
+   фоне, мягкие скругления, один яркий акцент). Светлая — через [data-theme="light"]. */
+:root,
+[data-theme='dark'] {
+  --bg: #10131c;
+  --bg-soft: #151a26;
+  --panel: #1a2032;
+  --panel-2: #212940;
+  --border: #2a3147;
+  --text: #eef1f7;
+  --muted: #8e98ac;
+  --accent: #7b76f5;
+  --accent-contrast: #ffffff;
+  --green: #22c55e;
+  --red: #f0506a;
+  --blue: #818cf8;
+  --shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.5);
+  --overlay: rgba(6, 8, 14, 0.6);
+}
+
+[data-theme='light'] {
+  --bg: #f3f5fa;
+  --bg-soft: #ffffff;
   --panel: #ffffff;
-  --border: #e0e4e8;
-  --text: #1c2530;
-  --muted: #7a8694;
-  --accent: #1976d2;
-  --green: #2e7d32;
-  --red: #c62828;
-  --blue: #1565c0;
+  --panel-2: #f1f3f9;
+  --border: #e2e6ef;
+  --text: #1b2230;
+  --muted: #6b7486;
+  --accent: #6a64f0;
+  --accent-contrast: #ffffff;
+  --green: #16a34a;
+  --red: #dc2f4c;
+  --blue: #5b62e0;
+  --shadow: 0 12px 28px -14px rgba(30, 35, 60, 0.18);
+  --overlay: rgba(20, 24, 38, 0.45);
 }
 
 * {
@@ -19,6 +45,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 .app {
@@ -31,46 +58,78 @@ header {
   position: sticky;
   top: 0;
   background: var(--bg);
-  padding: 16px 0;
+  padding: 18px 0 14px;
   z-index: 5;
 }
 
 header h1 {
-  margin: 0 0 12px;
-  font-size: 22px;
+  margin: 0 0 14px;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
 }
 
+/* ── Навигация: верхняя сегментированная (десктоп) и нижняя панель (мобайл) ── */
 nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 6px;
 }
 
-nav button,
-.app header nav button {
+nav button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: 1 1 auto;
   background: transparent;
-  border: 1px solid var(--border);
-  padding: 8px 16px;
-  border-radius: 8px;
+  border: none;
+  color: var(--muted);
+  padding: 9px 14px;
+  border-radius: 11px;
   cursor: pointer;
   font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+nav button:hover {
+  color: var(--text);
+  background: var(--panel-2);
 }
 
 nav button.active {
   background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.nav-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.nav-bottom {
+  display: none;
 }
 
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 20px;
+  padding: 22px;
+  box-shadow: var(--shadow);
 }
 
 .panel h2 {
-  margin-top: 0;
+  margin: 0 0 16px;
+  font-size: 19px;
+  font-weight: 700;
 }
 
 .muted {
@@ -84,36 +143,64 @@ nav button.active {
 button {
   font-size: 14px;
   cursor: pointer;
+  font-family: inherit;
 }
 
 input,
 select {
   font-size: 14px;
-  padding: 6px 8px;
+  padding: 9px 12px;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: #fff;
+  border-radius: 11px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: inherit;
 }
 
-/* Импорт */
+input::placeholder {
+  color: var(--muted);
+}
+
+input:focus,
+select:focus,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+
+.check-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+/* ── Импорт ── */
 .dropzone {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
   border: 2px dashed var(--border);
-  border-radius: 12px;
-  padding: 32px 20px;
+  border-radius: 18px;
+  padding: 36px 20px;
   text-align: center;
   cursor: pointer;
   color: var(--muted);
   margin: 16px 0;
+  background: var(--panel-2);
   transition: border-color 0.15s, background 0.15s;
 }
 
 .dropzone:hover {
   border-color: var(--accent);
-  background: #f0f6ff;
 }
 
 .dropzone-icon {
@@ -135,7 +222,6 @@ select {
   pointer-events: none;
 }
 
-/* Список выбранных файлов */
 .staged-list {
   list-style: none;
   padding: 0;
@@ -150,10 +236,10 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 12px;
-  background: #f7f9fb;
+  padding: 10px 14px;
+  background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .staged-name {
@@ -173,22 +259,22 @@ select {
 }
 
 .staged-remove:hover {
-  background: #ececec;
+  background: var(--border);
   color: var(--red);
 }
 
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
   border: none;
-  padding: 12px 20px;
-  border-radius: 10px;
+  padding: 13px 22px;
+  border-radius: 999px;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .btn-primary:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 .block {
@@ -202,28 +288,28 @@ select {
 }
 
 .report {
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
   margin-bottom: 6px;
 }
 
 .report.ok {
-  background: #e8f5e9;
+  background: color-mix(in srgb, var(--green) 16%, transparent);
 }
 
 .report.duplicate {
-  background: #fff8e1;
+  background: color-mix(in srgb, #f5a623 18%, transparent);
 }
 
 .report.error {
-  background: #ffebee;
+  background: color-mix(in srgb, var(--red) 16%, transparent);
 }
 
-/* Модалка */
+/* ── Модалка ── */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -231,8 +317,9 @@ select {
 }
 
 .modal {
-  background: #fff;
-  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
   padding: 24px;
   max-width: 640px;
   width: 90%;
@@ -267,8 +354,10 @@ select {
 
 .modal-actions button {
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
 }
 
 .cat-create {
@@ -277,25 +366,26 @@ select {
   align-items: center;
 }
 
-/* Дашборд */
+/* ── Дашборд ── */
 .chips {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .chip {
   border: 1px solid var(--border);
-  background: #fff;
-  padding: 6px 14px;
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 7px 16px;
   border-radius: 999px;
 }
 
 .chip.active {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
   border-color: var(--accent);
 }
 
@@ -303,8 +393,16 @@ select {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   flex-wrap: wrap;
+}
+
+.period button {
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 999px;
 }
 
 .cards {
@@ -315,19 +413,22 @@ select {
 
 .card {
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
+  background: var(--panel-2);
+  border-radius: 16px;
+  padding: 16px 18px;
 }
 
 .card-title {
   color: var(--muted);
   font-size: 13px;
+  font-weight: 600;
 }
 
 .card-value {
-  font-size: 22px;
-  font-weight: 600;
-  margin-top: 4px;
+  font-size: 23px;
+  font-weight: 700;
+  margin-top: 6px;
+  letter-spacing: -0.3px;
 }
 
 .card.green .card-value {
@@ -344,7 +445,7 @@ select {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
-  margin: 20px 0;
+  margin: 22px 0;
 }
 
 @media (max-width: 760px) {
@@ -355,37 +456,91 @@ select {
 
 .chart-box {
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
+  background: var(--panel-2);
+  border-radius: 18px;
+  padding: 14px;
   margin-bottom: 16px;
 }
 
 .chart-box h4 {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.exclusions h4 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 4px;
 }
 
 .exclusion-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
 }
 
 .exclusion-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
+  padding: 9px 6px;
+  border-bottom: 1px solid var(--border);
 }
 
-/* Таблица */
+.exclusion-item:last-child {
+  border-bottom: none;
+}
+
+.exclusion-item .check-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.exclusion-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  border-radius: 10px;
+  flex: none;
+  padding: 0;
+}
+
+.icon-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Таблица ── */
 .filters {
   display: flex;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .table-wrap {
   overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 16px;
 }
 
 table {
@@ -397,8 +552,25 @@ table {
 th,
 td {
   text-align: left;
-  padding: 6px 8px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border);
+}
+
+thead th {
+  background: var(--panel-2);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+tbody tr:hover {
+  background: var(--panel-2);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
 }
 
 td.num,
@@ -409,31 +581,57 @@ th.num {
 
 td.neg {
   color: var(--red);
+  font-weight: 600;
 }
 
 td.pos {
   color: var(--green);
+  font-weight: 600;
 }
 
 .badge {
   display: inline-block;
-  background: #eceff1;
+  background: var(--panel-2);
   color: var(--muted);
-  border-radius: 6px;
-  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
   font-size: 11px;
   margin-left: 6px;
+  white-space: nowrap;
 }
 
-/* Настройки */
+.badge-internal {
+  background: color-mix(in srgb, var(--blue) 18%, transparent);
+  color: var(--blue);
+  border-color: transparent;
+}
+
+.badge-external {
+  background: var(--panel-2);
+  color: var(--muted);
+}
+
+.transfer-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Настройки ── */
 .settings-list {
   list-style: none;
   padding: 0;
 }
 
 .settings-list li {
-  padding: 4px 0;
+  padding: 8px 0;
   border-bottom: 1px solid var(--border);
+}
+
+.settings-list li:last-child {
+  border-bottom: none;
 }
 
 .link {
@@ -450,7 +648,13 @@ td.pos {
 }
 
 section {
-  margin-bottom: 24px;
+  margin-bottom: 28px;
+}
+
+section h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 10px;
 }
 
 .danger {
@@ -459,16 +663,43 @@ section {
 }
 
 .btn-danger {
-  background: var(--red);
-  color: #fff;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--red) 18%, transparent);
+  color: var(--red);
+  border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
+  padding: 9px 16px;
+  border-radius: 999px;
   margin-right: 8px;
 }
 
+/* Сегментированный переключатель (тема и т.п.) */
+.segmented {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.segmented button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.segmented button.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
 footer {
-  margin-top: 24px;
+  margin-top: 28px;
   text-align: center;
 }
 
@@ -574,7 +805,7 @@ footer {
 }
 
 .review-tag {
-  background: #eef2f6;
+  background: var(--panel-2);
   color: var(--muted);
   border-radius: 999px;
   padding: 4px 10px;
@@ -598,7 +829,8 @@ footer {
   align-items: center;
   gap: 8px;
   border: 1.5px solid var(--border);
-  background: #fff;
+  background: var(--panel-2);
+  color: var(--text);
   border-radius: 999px;
   padding: 10px 16px;
   font-size: 15px;
@@ -612,7 +844,7 @@ footer {
 
 .pill.selected {
   border-color: var(--accent);
-  background: #e8f1fd;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
   font-weight: 600;
 }
 
@@ -627,6 +859,7 @@ footer {
   border-style: dashed;
   color: var(--accent);
   border-color: var(--accent);
+  background: transparent;
 }
 
 /* Создание категории на месте */
@@ -634,8 +867,8 @@ footer {
   margin-top: 16px;
   padding: 16px;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel);
+  border-radius: 16px;
+  background: var(--panel-2);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -660,23 +893,24 @@ footer {
 
 .cat-create-actions button,
 .review-nav button {
-  padding: 10px 18px;
-  border-radius: 10px;
+  padding: 11px 18px;
+  border-radius: 999px;
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--panel-2);
+  color: var(--text);
   font-size: 15px;
 }
 
 .cat-create-actions .primary,
 .review-nav .primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
   border-color: var(--accent);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 button:disabled {
-  opacity: 0.55;
+  opacity: 0.45;
   cursor: default;
 }
 
@@ -711,9 +945,9 @@ button:disabled {
 }
 
 .warn {
-  background: #fff8e1;
-  border: 1px solid #ffe082;
-  border-radius: 10px;
+  background: color-mix(in srgb, #f5a623 16%, transparent);
+  border: 1px solid color-mix(in srgb, #f5a623 35%, transparent);
+  border-radius: 12px;
   padding: 10px 12px;
   font-size: 14px;
 }
@@ -747,31 +981,62 @@ button:disabled {
   white-space: nowrap;
 }
 
+/* ── Графики Recharts: фон тултипа в тон карточки ── */
+.recharts-default-tooltip {
+  border-radius: 12px !important;
+}
+
 /* ── Мобильная адаптация ── */
+@media (max-width: 760px) {
+  .nav-top {
+    display: none;
+  }
+
+  .nav-bottom {
+    display: flex;
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 15;
+    padding: 6px;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom));
+  }
+
+  .nav-bottom button {
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px 4px;
+    font-size: 11px;
+  }
+
+  .app {
+    padding-bottom: 90px;
+  }
+
+  footer {
+    padding-bottom: 70px;
+  }
+}
+
 @media (max-width: 600px) {
   .app {
-    padding: 0 12px 40px;
+    padding: 0 12px 90px;
   }
 
   header h1 {
     font-size: 19px;
   }
 
-  nav button,
-  .app header nav button {
-    flex: 1 1 calc(50% - 8px);
-    padding: 10px 8px;
-    text-align: center;
-  }
-
   .panel {
     padding: 16px;
+    border-radius: 18px;
   }
 
   input,
   select {
     font-size: 16px; /* предотвращает зум в iOS */
-    padding: 10px;
+    padding: 11px 12px;
   }
 
   .filters input,

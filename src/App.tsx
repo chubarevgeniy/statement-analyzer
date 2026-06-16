@@ -1,38 +1,59 @@
 import { useState } from 'react';
 import { useAppData } from './ui/useAppData';
+import { useTheme } from './ui/theme';
 import { ImportPanel } from './components/ImportPanel';
 import { Dashboard } from './components/Dashboard';
 import { TransactionsTable } from './components/TransactionsTable';
+import { TransfersTable } from './components/TransfersTable';
 import { SettingsPanel } from './components/SettingsPanel';
+import { IconDashboard, IconImport, IconList, IconSettings, IconSwap } from './ui/icons';
 
-type Tab = 'dashboard' | 'import' | 'transactions' | 'settings';
+type Tab = 'dashboard' | 'import' | 'transactions' | 'transfers' | 'settings';
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'dashboard', label: 'Дашборд' },
-  { id: 'import', label: 'Импорт' },
-  { id: 'transactions', label: 'Транзакции' },
-  { id: 'settings', label: 'Настройки' },
+const TABS: { id: Tab; label: string; icon: (p: { className?: string }) => JSX.Element }[] = [
+  { id: 'dashboard', label: 'Дашборд', icon: IconDashboard },
+  { id: 'import', label: 'Импорт', icon: IconImport },
+  { id: 'transactions', label: 'Транзакции', icon: IconList },
+  { id: 'transfers', label: 'Переводы', icon: IconSwap },
+  { id: 'settings', label: 'Настройки', icon: IconSettings },
 ];
 
 export default function App() {
   const data = useAppData();
+  const theme = useTheme();
   const [tab, setTab] = useState<Tab>('dashboard');
+  const [categoryFilter, setCategoryFilter] = useState<string | null | undefined>(undefined);
 
-  return (
-    <div className="app">
-      <header>
-        <h1>Анализатор выписок</h1>
-        <nav>
-          {TABS.map((t) => (
+  function goToCategory(categoryId: string | null) {
+    setCategoryFilter(categoryId);
+    setTab('transactions');
+  }
+
+  function renderNav(className: string) {
+    return (
+      <nav className={className}>
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          return (
             <button
               key={t.id}
               className={tab === t.id ? 'active' : ''}
               onClick={() => setTab(t.id)}
             >
-              {t.label}
+              <Icon className="nav-icon" />
+              <span>{t.label}</span>
             </button>
-          ))}
-        </nav>
+          );
+        })}
+      </nav>
+    );
+  }
+
+  return (
+    <div className="app">
+      <header>
+        <h1>Анализатор выписок</h1>
+        {renderNav('nav-top')}
       </header>
 
       <main>
@@ -45,6 +66,8 @@ export default function App() {
             categories={data.categories}
             settings={data.settings}
             onSettingsChange={data.reload}
+            onViewCategory={goToCategory}
+            theme={theme.resolved}
           />
         ) : tab === 'import' ? (
           <ImportPanel categories={data.categories} onImported={data.reload} />
@@ -54,7 +77,10 @@ export default function App() {
             accounts={data.accounts}
             categories={data.categories}
             onChange={data.reload}
+            presetCategoryId={categoryFilter}
           />
+        ) : tab === 'transfers' ? (
+          <TransfersTable txns={data.txns} accounts={data.accounts} onChange={data.reload} />
         ) : (
           <SettingsPanel
             categories={data.categories}
@@ -62,12 +88,17 @@ export default function App() {
             accounts={data.accounts}
             statements={data.statements}
             onChange={data.reload}
+            themeMode={theme.mode}
+            onThemeModeChange={theme.setMode}
           />
         )}
       </main>
 
+      {renderNav('nav-bottom')}
+
       <footer className="muted small">
-        Все данные хранятся локально в вашем браузере (IndexedDB). Ничего не отправляется на сервер.
+        Все данные хранятся локально в вашем браузере (IndexedDB). Ничего не отправляется на
+        сервер.
       </footer>
     </div>
   );
