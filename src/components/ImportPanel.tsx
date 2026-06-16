@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { extractText } from '../parsers';
 import { commitImport, prepareImport, type ImportPrep, type UnknownKey } from '../services/import';
 import { lookupRate } from '../services/fx';
 import { putCategory } from '../db/categoriesDb';
-import type { Category } from '../types';
-import { CategoryPicker, type CategoryChoice } from './CategoryPicker';
-import { bankLabel } from '../ui/format';
+import type { Category, CategoryKind } from '../types';
+import { ImportReview, type FxNeedRow } from './ImportReview';
 
 interface FileReport {
   fileName: string;
@@ -18,7 +17,7 @@ interface FileReport {
 interface PendingResolution {
   preps: ImportPrep[];
   unknownKeys: UnknownKey[];
-  fxNeeds: { currency: string; date: string; rate: number | '' }[];
+  fxNeeds: FxNeedRow[];
 }
 
 export function ImportPanel({
@@ -28,19 +27,43 @@ export function ImportPanel({
   categories: Category[];
   onImported: () => Promise<void>;
 }) {
+  const [staged, setStaged] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [reports, setReports] = useState<FileReport[]>([]);
   const [pending, setPending] = useState<PendingResolution | null>(null);
-  const [choices, setChoices] = useState<Record<string, CategoryChoice>>({});
+  const [choices, setChoices] = useState<Record<string, string>>({});
+  // Категории, созданные прямо во время разбора — доступны сразу для следующих операций.
+  const [extraCategories, setExtraCategories] = useState<Category[]>([]);
 
-  async function handleFiles(files: FileList | null) {
-    if (!files || files.length === 0) return;
+  // Объединяем сохранённые и только что созданные, убирая дубли по id.
+  const allCategories = useMemo(() => {
+    const m = new Map<string, Category>();
+    for (const c of categories) m.set(c.id, c);
+    for (const c of extraCategories) m.set(c.id, c);
+    return Array.from(m.values());
+  }, [categories, extraCategories]);
+
+  function addFiles(files: FileList | null) {
+    if (!files) return;
+    setStaged((prev) => {
+      const byKey = new Map(prev.map((f) => [`${f.name}:${f.size}`, f]));
+      for (const f of Array.from(files)) byKey.set(`${f.name}:${f.size}`, f);
+      return Array.from(byKey.values());
+    });
+  }
+
+  function removeStaged(idx: number) {
+    setStaged((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function handleProcess() {
+    if (staged.length === 0) return;
     setBusy(true);
     setReports([]);
     const preps: ImportPrep[] = [];
     const doneReports: FileReport[] = [];
 
-    for (const file of Array.from(files)) {
+    for (const file of staged) {
       try {
         const buf = await file.arrayBuffer();
         const text = await extractText(buf);
@@ -67,7 +90,9 @@ export function ImportPanel({
       }
     }
 
-    // Агрегируем неизвестные ключи и потребности в курсах.
+    setStaged([]);
+
+    // Агрегируем неизвестные ключи и потребности в курсах по всем файлам.
     const unknownMap = new Map<string, UnknownKey>();
     const fxMap = new Map<string, { currency: string; date: string }>();
     for (const p of preps) {
@@ -83,7 +108,6 @@ export function ImportPanel({
     const fxNeedsRaw = Array.from(fxMap.values());
 
     if (unknownKeys.length === 0 && fxNeedsRaw.length === 0) {
-      // Сразу коммитим.
       for (const p of preps) {
         const added = await commitImport(p);
         doneReports.push({ fileName: p.fileName, status: 'ok', added, duplicates: p.duplicateCount });
@@ -108,27 +132,27 @@ export function ImportPanel({
     setBusy(false);
   }
 
+  async function createCategory(data: { name: string; kind: CategoryKind; color: string }) {
+    const cat: Category = {
+      id: crypto.randomUUID(),
+      name: data.name,
+      kind: data.kind,
+      excludedByDefault: false,
+      color: data.color,
+    };
+    await putCategory(cat); // сохраняем сразу — доступна для следующих операций
+    setExtraCategories((prev) => [...prev, cat]);
+    return cat;
+  }
+
   async function confirmResolution() {
     if (!pending) return;
     setBusy(true);
 
-    // Создаём новые категории и строим map ключ→categoryId.
     const categoryByKey = new Map<string, string>();
     for (const u of pending.unknownKeys) {
-      const choice = choices[u.key];
-      if (!choice) continue;
-      if (choice.newCategory) {
-        await putCategory({
-          id: choice.newCategory.id,
-          name: choice.newCategory.name,
-          kind: choice.newCategory.kind,
-          excludedByDefault: false,
-          color: choice.newCategory.color,
-        });
-        categoryByKey.set(u.key, choice.newCategory.id);
-      } else if (choice.categoryId) {
-        categoryByKey.set(u.key, choice.categoryId);
-      }
+      const id = choices[u.key];
+      if (id) categoryByKey.set(u.key, id);
     }
 
     const fxRates = new Map<string, number>();
@@ -146,16 +170,36 @@ export function ImportPanel({
 
     setReports(newReports);
     setPending(null);
+    setChoices({});
+    setExtraCategories([]);
     await onImported();
     setBusy(false);
   }
 
-  const allResolved =
-    pending != null &&
-    pending.unknownKeys.every((u) => {
-      const c = choices[u.key];
-      return c && (c.categoryId || c.newCategory);
-    });
+  if (pending) {
+    return (
+      <ImportReview
+        categories={allCategories}
+        unknownKeys={pending.unknownKeys}
+        fxNeeds={pending.fxNeeds}
+        choices={choices}
+        busy={busy}
+        onSetRate={(i, rate) =>
+          setPending((prev) =>
+            prev ? { ...prev, fxNeeds: prev.fxNeeds.map((x, j) => (j === i ? { ...x, rate } : x)) } : prev,
+          )
+        }
+        onSetCategory={(key, categoryId) => setChoices((prev) => ({ ...prev, [key]: categoryId }))}
+        onCreateCategory={createCategory}
+        onCancel={() => {
+          setPending(null);
+          setChoices({});
+          setExtraCategories([]);
+        }}
+        onConfirm={confirmResolution}
+      />
+    );
+  }
 
   return (
     <div className="panel">
@@ -171,10 +215,43 @@ export function ImportPanel({
           accept="application/pdf"
           multiple
           disabled={busy}
-          onChange={(e) => handleFiles(e.target.files)}
+          onChange={(e) => {
+            addFiles(e.target.files);
+            e.target.value = '';
+          }}
         />
-        {busy ? 'Обработка…' : 'Выберите PDF-файлы выписок (можно несколько)'}
+        <span className="dropzone-icon">📄</span>
+        <span className="dropzone-text">
+          {staged.length > 0 ? 'Добавить ещё файлы' : 'Выберите PDF-выписки'}
+        </span>
+        <span className="muted small">
+          Загрузите выписки всех счетов сразу — так внутренние переводы определятся автоматически.
+        </span>
       </label>
+
+      {staged.length > 0 && (
+        <>
+          <ul className="staged-list">
+            {staged.map((f, i) => (
+              <li key={`${f.name}:${f.size}`} className="staged-item">
+                <span className="staged-name">📎 {f.name}</span>
+                <button
+                  type="button"
+                  className="staged-remove"
+                  onClick={() => removeStaged(i)}
+                  disabled={busy}
+                  aria-label="Убрать файл"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="btn-primary block" onClick={handleProcess} disabled={busy}>
+            {busy ? 'Обработка…' : `Разобрать ${staged.length} файл(ов)`}
+          </button>
+        </>
+      )}
 
       {reports.length > 0 && (
         <ul className="reports">
@@ -189,74 +266,10 @@ export function ImportPanel({
         </ul>
       )}
 
-      {pending && (
-        <div className="modal-backdrop">
-          <div className="modal">
-            <h3>Требуется уточнение</h3>
-
-            {pending.fxNeeds.length > 0 && (
-              <section>
-                <h4>Курсы валют к EUR</h4>
-                <p className="muted">Курс не найден автоматически — введите вручную.</p>
-                {pending.fxNeeds.map((f, i) => (
-                  <div key={i} className="resolve-row">
-                    <span>
-                      {f.currency} на {f.date}
-                    </span>
-                    <input
-                      type="number"
-                      step="0.0001"
-                      value={f.rate}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setPending((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                fxNeeds: prev.fxNeeds.map((x, j) =>
-                                  j === i ? { ...x, rate: v === '' ? '' : Number(v) } : x,
-                                ),
-                              }
-                            : prev,
-                        );
-                      }}
-                    />
-                    <span className="muted">EUR за 1 {f.currency}</span>
-                  </div>
-                ))}
-              </section>
-            )}
-
-            {pending.unknownKeys.length > 0 && (
-              <section>
-                <h4>Новые операции — выберите категории</h4>
-                {pending.unknownKeys.map((u) => (
-                  <div key={u.key} className="resolve-row">
-                    <span className="resolve-desc" title={u.sampleDescription}>
-                      {u.sampleDescription} <span className="muted">×{u.count}</span>
-                    </span>
-                    <CategoryPicker
-                      categories={categories}
-                      value={choices[u.key] ?? null}
-                      suggestedKind={u.suggestedKind}
-                      onChange={(choice) => setChoices((prev) => ({ ...prev, [u.key]: choice }))}
-                    />
-                  </div>
-                ))}
-              </section>
-            )}
-
-            <div className="modal-actions">
-              <button type="button" onClick={() => setPending(null)} disabled={busy}>
-                Отмена
-              </button>
-              <button type="button" onClick={confirmResolution} disabled={busy || !allResolved}>
-                Импортировать ({pending.preps.reduce((s, p) => s + p.newCount, 0)} операций из{' '}
-                {pending.preps.map((p) => bankLabel(p.bank)).join(', ')})
-              </button>
-            </div>
-          </div>
-        </div>
+      {reports.some((r) => r.status === 'ok') && (
+        <p className="muted small">
+          Готово. Откройте «Дашборд» или «Транзакции», чтобы посмотреть результат.
+        </p>
       )}
     </div>
   );
