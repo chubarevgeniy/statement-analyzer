@@ -5,7 +5,11 @@ import { normalizeName } from '../parsers/util';
 // Внутренность вычисляется ДИНАМИЧЕСКИ от выбранных профилей (см. analytics).
 
 const DAY = 86_400_000;
-const PAIR_WINDOW_DAYS = 5;
+// Окно парного сопоставления переводов. Деньги между своими счетами нередко
+// идут не день-в-день: банк сначала тратит/списывает, а пополнение приходит
+// заметно позже (или наоборот — входящий перевод за неделю до исходящего).
+// Поэтому окно широкое — чуть больше недели.
+const PAIR_WINDOW_DAYS = 10;
 
 export function ownerByIban(accounts: Account[]): Map<string, string> {
   const m = new Map<string, string>();

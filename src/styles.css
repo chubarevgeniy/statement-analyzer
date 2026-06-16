@@ -1178,6 +1178,100 @@ button:disabled {
 }
 
 
+/* ── Импорт: выбор владельца ── */
+.import-owner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.import-owner select {
+  max-width: 320px;
+}
+
+/* ── Кнопка ИИ в мастере разбора ── */
+.ai-btn {
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ai-msg {
+  padding: 0 16px 8px;
+  background: var(--panel);
+}
+
+/* Поиск по таблеткам категорий */
+.pill-search {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+/* ── Групповые действия в таблице ── */
+.bulk-bar,
+.similar-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+
+.similar-bar {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.bulk-count {
+  font-weight: 700;
+}
+
+.bulk-bar button,
+.similar-bar button {
+  padding: 8px 14px;
+  border-radius: 999px;
+}
+
+.check-col {
+  width: 36px;
+  text-align: center;
+}
+
+.row-selected {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.transfer-mini {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+/* ── Настройки локального ИИ ── */
+.llm-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+}
+
+.llm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 /* ── Маппинги настроек ── */
 .mapping-list .mapping-item {
   display: flex;

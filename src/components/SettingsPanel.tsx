@@ -1,7 +1,14 @@
 import { useState } from 'react';
-import type { Account, Category, Mapping, StatementMeta } from '../types';
-import { deleteCategory, deleteMapping, putCategory, resetCategoriesDb } from '../db/categoriesDb';
+import type { Account, Category, LlmConfig, Mapping, Settings, StatementMeta } from '../types';
+import {
+  deleteCategory,
+  deleteMapping,
+  putCategory,
+  putSettings,
+  resetCategoriesDb,
+} from '../db/categoriesDb';
 import { resetTransactionsDb } from '../db/transactionsDb';
+import { pingLlm } from '../services/llm';
 import { bankLabel, ownerLabel } from '../ui/format';
 import type { ThemeMode } from '../ui/theme';
 import { IconAuto, IconDownload, IconMoon, IconSun, IconUpload } from '../ui/icons';
@@ -18,6 +25,7 @@ export function SettingsPanel({
   mappings,
   accounts,
   statements,
+  settings,
   onChange,
   themeMode,
   onThemeModeChange,
@@ -26,12 +34,33 @@ export function SettingsPanel({
   mappings: Mapping[];
   accounts: Account[];
   statements: StatementMeta[];
+  settings: Settings;
   onChange: () => Promise<void>;
   themeMode: ThemeMode;
   onThemeModeChange: (mode: ThemeMode) => void;
 }) {
   const [newName, setNewName] = useState('');
   const [backupBusy, setBackupBusy] = useState(false);
+
+  const [llm, setLlm] = useState<LlmConfig>(
+    settings.llm ?? { baseUrl: 'http://localhost:11434/v1', model: '', enabled: false },
+  );
+  const [llmMsg, setLlmMsg] = useState<string | null>(null);
+  const [llmBusy, setLlmBusy] = useState(false);
+
+  async function saveLlm(next: LlmConfig) {
+    setLlm(next);
+    await putSettings({ ...settings, llm: next });
+    await onChange();
+  }
+
+  async function testLlm() {
+    setLlmBusy(true);
+    setLlmMsg(null);
+    const res = await pingLlm(llm);
+    setLlmMsg((res.ok ? '✓ ' : '✗ ') + res.message);
+    setLlmBusy(false);
+  }
 
   async function addCategory() {
     const name = newName.trim();
@@ -125,6 +154,49 @@ export function SettingsPanel({
               </button>
             );
           })}
+        </div>
+      </section>
+
+      <section>
+        <h3>Локальный ИИ (Ollama / OpenAI-совместимый)</h3>
+        <p className="muted small">
+          Укажите адрес локальной модели (напр. запущенной через Ollama). ИИ попробует сам
+          сопоставить операции с существующими категориями при импорте и групповыми действиями на
+          вкладке «Транзакции». Запросы идут только на указанный адрес — никаких внешних сервисов.
+        </p>
+        <div className="llm-form">
+          <label className="llm-field">
+            <span className="muted small">Адрес API (base URL)</span>
+            <input
+              placeholder="http://localhost:11434/v1"
+              value={llm.baseUrl}
+              onChange={(e) => setLlm({ ...llm, baseUrl: e.target.value })}
+              onBlur={() => void saveLlm(llm)}
+            />
+          </label>
+          <label className="llm-field">
+            <span className="muted small">Модель</span>
+            <input
+              placeholder="llama3.1"
+              value={llm.model}
+              onChange={(e) => setLlm({ ...llm, model: e.target.value })}
+              onBlur={() => void saveLlm(llm)}
+            />
+          </label>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={llm.enabled}
+              onChange={(e) => void saveLlm({ ...llm, enabled: e.target.checked })}
+            />
+            Включить ИИ-категоризацию
+          </label>
+          <div className="backup-actions">
+            <button type="button" onClick={testLlm} disabled={llmBusy}>
+              {llmBusy ? 'Проверка…' : 'Проверить соединение'}
+            </button>
+          </div>
+          {llmMsg && <p className="muted small">{llmMsg}</p>}
         </div>
       </section>
 

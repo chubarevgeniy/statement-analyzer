@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import type { Category, CategoryKind } from '../types';
+import type { Category, CategoryKind, LlmConfig } from '../types';
 import type { UnknownKey } from '../services/import';
+import { suggestCategoriesLlm, type LlmItem } from '../services/llm';
 import { bankLabel, formatDate, formatEur } from '../ui/format';
 
 const KIND_LABELS: Record<CategoryKind, string> = {
@@ -28,8 +29,10 @@ export function ImportReview({
   fxNeeds,
   choices,
   busy,
+  llmConfig,
   onSetRate,
   onSetCategory,
+  onSetChoices,
   onCreateCategory,
   onCancel,
   onConfirm,
@@ -40,8 +43,12 @@ export function ImportReview({
   /** key операции → id выбранной категории. */
   choices: Record<string, string>;
   busy: boolean;
+  /** Конфиг локального ИИ (если включён) — показывает кнопку авто-распознавания. */
+  llmConfig?: LlmConfig | null;
   onSetRate: (index: number, rate: number | '') => void;
   onSetCategory: (key: string, categoryId: string) => void;
+  /** Массовая установка выборов (для ИИ-распознавания). */
+  onSetChoices?: (next: Record<string, string>) => void;
   /** Создаёт и сразу сохраняет категорию, возвращает её. */
   onCreateCategory: (data: { name: string; kind: CategoryKind; color: string }) => Promise<Category>;
   onCancel: () => void;
@@ -50,6 +57,31 @@ export function ImportReview({
   // Шаги: сначала курсы, затем категории, последний шаг — подтверждение.
   const totalSteps = fxNeeds.length + unknownKeys.length;
   const [step, setStep] = useState(0);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiMsg, setAiMsg] = useState<string | null>(null);
+
+  async function runAi() {
+    if (!llmConfig || !onSetChoices || unknownKeys.length === 0) return;
+    setAiBusy(true);
+    setAiMsg(null);
+    try {
+      const items: LlmItem[] = unknownKeys.map((u) => ({
+        key: u.key,
+        description: u.sampleDescription,
+        amount: u.sampleAmount,
+        currency: u.sampleCurrency,
+      }));
+      const suggestions = await suggestCategoriesLlm(items, categories, llmConfig);
+      const next: Record<string, string> = {};
+      for (const [key, id] of suggestions) next[key] = id;
+      onSetChoices(next);
+      setAiMsg(`ИИ распознал ${suggestions.size} из ${unknownKeys.length}`);
+    } catch (e) {
+      setAiMsg('Ошибка ИИ: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   const resolvedCount =
     fxNeeds.filter((f) => f.rate !== '').length +
@@ -79,7 +111,13 @@ export function ImportReview({
             {totalSteps}
           </span>
         </div>
+        {llmConfig && onSetChoices && unknownKeys.length > 0 && (
+          <button type="button" className="ai-btn" onClick={runAi} disabled={busy || aiBusy}>
+            {aiBusy ? '🤖 …' : '🤖 ИИ'}
+          </button>
+        )}
       </div>
+      {aiMsg && <div className="ai-msg muted small">{aiMsg}</div>}
 
       <div className="review-body">
         {isConfirmStep ? (
@@ -171,6 +209,7 @@ function CategoryStep({
   const [name, setName] = useState('');
   const [kind, setKind] = useState<CategoryKind>(item.suggestedKind);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
 
   // Категории-подсказки (совпадающие по виду) — вперёд.
   const sorted = useMemo(() => {
@@ -181,6 +220,12 @@ function CategoryStep({
       return a.name.localeCompare(b.name, 'ru');
     });
   }, [categories, item.suggestedKind]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return sorted;
+    return sorted.filter((c) => c.name.toLowerCase().includes(q));
+  }, [sorted, search]);
 
   const sign = item.sampleAmount < 0 ? 'neg' : 'pos';
 
@@ -214,8 +259,17 @@ function CategoryStep({
       </div>
 
       <div className="review-pick-label muted">Выберите категорию:</div>
+      {categories.length > 8 && (
+        <input
+          className="pill-search"
+          type="search"
+          placeholder="Поиск категории…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      )}
       <div className="pill-grid">
-        {sorted.map((c) => (
+        {filtered.map((c) => (
           <button
             key={c.id}
             type="button"
@@ -226,6 +280,7 @@ function CategoryStep({
             {c.name}
           </button>
         ))}
+        {filtered.length === 0 && <span className="muted small">Ничего не найдено</span>}
         {!creating && (
           <button type="button" className="pill pill-new" onClick={() => setCreating(true)}>
             ＋ Новая

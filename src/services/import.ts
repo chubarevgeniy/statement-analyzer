@@ -47,14 +47,27 @@ export interface ImportPrep {
   periodEnd?: string;
 }
 
-/** Готовит черновики транзакций к импорту из уже разобранной выписки. */
-export async function prepareImport(res: ParseResult, fileName: string): Promise<ImportPrep> {
+/**
+ * Готовит черновики транзакций к импорту из уже разобранной выписки.
+ * `ownerOverride` (если задан) принудительно назначает владельца всем счетам/операциям
+ * файла — удобно для CSV/XLSX без имени в шапке (напр. экспорт Trade Republic).
+ */
+export async function prepareImport(
+  res: ParseResult,
+  fileName: string,
+  ownerOverride?: string,
+): Promise<ImportPrep> {
   const bank = res.account.bank;
-  const owner = res.account.holderName ? normalizeName(res.account.holderName) : 'неизвестно';
+  const owner = ownerOverride
+    ? normalizeName(ownerOverride)
+    : res.account.holderName
+      ? normalizeName(res.account.holderName)
+      : 'неизвестно';
+  const holderName = ownerOverride ?? res.account.holderName;
   const primaryIban = res.account.ibans[0] ?? `${bank}-unknown`;
 
   const accounts: Account[] = (res.account.ibans.length ? res.account.ibans : [primaryIban]).map(
-    (iban) => ({ iban, holderName: res.account.holderName, owner, bank }),
+    (iban) => ({ iban, holderName, owner, bank }),
   );
 
   const [existingTxns, mappings] = await Promise.all([getAllTxns(), getMappings()]);
