@@ -164,12 +164,14 @@ export function SettingsPanel({
 
       <section>
         <h3>Маппинги операций → категории ({mappings.length})</h3>
-        <ul className="settings-list">
+        <ul className="settings-list mapping-list">
           {mappings.map((m) => (
-            <li key={m.key}>
-              <code>{m.key}</code> → {catName(m.categoryId)}
+            <li key={m.key} className="mapping-item">
+              <span className="mapping-key">{m.key}</span>
+              <span className="mapping-arrow">→</span>
+              <span className="mapping-cat">{catName(m.categoryId)}</span>
               <button
-                className="link"
+                className="link mapping-delete"
                 onClick={async () => {
                   await deleteMapping(m.key);
                   await onChange();

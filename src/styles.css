@@ -487,6 +487,8 @@ input[type='radio'] {
   font-weight: 700;
   margin-top: 6px;
   letter-spacing: -0.3px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .card.green .card-value {
@@ -725,6 +727,9 @@ section h3 {
 .danger {
   border-top: 1px solid var(--border);
   padding-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .btn-danger {
@@ -733,7 +738,6 @@ section h3 {
   border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
   padding: 9px 16px;
   border-radius: 999px;
-  margin-right: 8px;
 }
 
 /* ── Резервная копия / экспорт-импорт ── */
@@ -878,6 +882,7 @@ footer {
   line-height: 1.25;
   margin-bottom: 4px;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .review-amount {
@@ -991,6 +996,7 @@ footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .cat-create-actions button,
@@ -1001,6 +1007,7 @@ footer {
   background: var(--panel-2);
   color: var(--text);
   font-size: 15px;
+  flex: 1 1 auto;
 }
 
 .cat-create-actions .primary,
@@ -1038,6 +1045,7 @@ button:disabled {
   padding: 14px 16px;
   border-top: 1px solid var(--border);
   background: var(--panel);
+  flex-wrap: wrap;
 }
 
 /* Экран подтверждения */
@@ -1081,11 +1089,21 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* ── Графики Recharts: фон тултипа в тон карточки ── */
 .recharts-default-tooltip {
   border-radius: 12px !important;
+}
+
+.recharts-pie-sector:focus,
+.recharts-pie path:focus,
+.recharts-layer:focus,
+.recharts-sector:focus,
+.recharts-wrapper *:focus {
+  outline: none !important;
 }
 
 /* ── Мобильная адаптация ── */
@@ -1123,7 +1141,7 @@ button:disabled {
 
 @media (max-width: 600px) {
   .app {
-    padding: 0 12px 90px;
+    padding: 0 16px 90px;
   }
 
   header h1 {
@@ -1157,4 +1175,41 @@ button:disabled {
   table {
     font-size: 12px;
   }
+}
+
+
+/* ── Маппинги настроек ── */
+.mapping-list .mapping-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 0;
+}
+
+.mapping-key {
+  font-family: monospace;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  border-radius: 8px;
+  word-break: break-all;
+  font-size: 13px;
+  flex: 1 1 auto;
+}
+
+.mapping-arrow {
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.mapping-cat {
+  font-weight: 600;
+  flex: 1 1 auto;
+  word-break: break-word;
+}
+
+.mapping-delete {
+  margin-left: auto;
+  flex: 0 0 auto;
 }

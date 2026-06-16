@@ -157,7 +157,7 @@ export function Dashboard({
       <div className="cards">
         <Card title="Доходы" value={result.income} accent="green" />
         <Card title="Расходы" value={result.expense} accent="red" />
-        <Card title="Сальдо (разница)" value={result.net} accent={result.net >= 0 ? 'green' : 'red'} fullWidth />
+        <Card title="Сальдо (разница)" value={result.net} accent={result.net >= 0 ? 'green' : 'red'} />
         <Card title="В инвестиции" value={result.savingsContributions} accent="blue" />
         <Card title="Изменение кэша" value={cashRemaining} accent="neutral" />
       </div>
