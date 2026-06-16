@@ -71,8 +71,31 @@ export function Dashboard({
   };
   const owners = ownersList(accounts);
   const fullRange = useMemo(() => dateRange(txns), [txns]);
-  const [start, setStart] = useState(fullRange.start);
-  const [end, setEnd] = useState(fullRange.end);
+
+  type PeriodMode = 'all' | 'year' | 'month' | 'custom';
+  const [mode, setMode] = useState<PeriodMode>('all');
+  const years = useMemo(() => {
+    const a = Number(fullRange.start.slice(0, 4));
+    const b = Number(fullRange.end.slice(0, 4));
+    const arr: number[] = [];
+    for (let y = b; y >= a; y--) arr.push(y);
+    return arr.length ? arr : [new Date().getFullYear()];
+  }, [fullRange]);
+  const [year, setYear] = useState<number>(years[0]);
+  const [month, setMonth] = useState<string>(fullRange.end.slice(0, 7));
+  const [customStart, setCustomStart] = useState(fullRange.start);
+  const [customEnd, setCustomEnd] = useState(fullRange.end);
+
+  const period = useMemo(() => {
+    if (mode === 'year') return { start: `${year}-01-01`, end: `${year}-12-31` };
+    if (mode === 'month') {
+      const [y, m] = month.split('-').map(Number);
+      const last = new Date(y, m, 0).getDate();
+      return { start: `${month}-01`, end: `${month}-${String(last).padStart(2, '0')}` };
+    }
+    if (mode === 'custom') return { start: customStart, end: customEnd };
+    return fullRange;
+  }, [mode, year, month, customStart, customEnd, fullRange]);
 
   const selectedOwners = settings.selectedOwners.length ? settings.selectedOwners : owners;
   const selectedSet = new Set(selectedOwners);
@@ -80,11 +103,11 @@ export function Dashboard({
   const result = useMemo(
     () =>
       analyze(txns, accounts, categories, {
-        period: { start, end },
+        period,
         selectedOwners: settings.selectedOwners,
         excludedCategoryIds: settings.excludedCategoryIds,
       }),
-    [txns, accounts, categories, start, end, settings],
+    [txns, accounts, categories, period, settings],
   );
 
   async function persist(next: Settings) {
@@ -139,19 +162,64 @@ export function Dashboard({
       )}
 
       <div className="period period-inputs">
-        <div className="period-dates">
-          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} aria-label="С" />
-          <span className="muted">–</span>
-          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} aria-label="по" />
+        <div className="segmented">
+          {(
+            [
+              ['all', 'Весь'],
+              ['year', 'Год'],
+              ['month', 'Месяц'],
+              ['custom', 'Период'],
+            ] as [PeriodMode, string][]
+          ).map(([m, label]) => (
+            <button
+              key={m}
+              type="button"
+              className={mode === m ? 'active' : ''}
+              onClick={() => setMode(m)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-        <button
-          onClick={() => {
-            setStart(fullRange.start);
-            setEnd(fullRange.end);
-          }}
-        >
-          Весь период
-        </button>
+
+        {mode === 'year' && (
+          <select value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Год">
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {mode === 'month' && (
+          <input
+            type="month"
+            value={month}
+            min={fullRange.start.slice(0, 7)}
+            max={fullRange.end.slice(0, 7)}
+            onChange={(e) => setMonth(e.target.value)}
+            aria-label="Месяц"
+          />
+        )}
+
+        {mode === 'custom' && (
+          <div className="period-dates">
+            <input
+              type="date"
+              value={customStart}
+              onChange={(e) => setCustomStart(e.target.value)}
+              aria-label="С"
+            />
+            <span className="muted">–</span>
+            <input
+              type="date"
+              value={customEnd}
+              onChange={(e) => setCustomEnd(e.target.value)}
+              aria-label="по"
+            />
+          </div>
+        )}
       </div>
 
       <div className="cards">

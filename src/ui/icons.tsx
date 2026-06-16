@@ -47,17 +47,6 @@ export function IconList({ className }: IconProps) {
   );
 }
 
-export function IconSwap({ className }: IconProps) {
-  return (
-    <svg {...base} className={className}>
-      <path d="M4 8h13" />
-      <path d="M14 4l3 4-3 4" />
-      <path d="M20 16H7" />
-      <path d="M10 12l-3 4 3 4" />
-    </svg>
-  );
-}
-
 export function IconSettings({ className }: IconProps) {
   return (
     <svg {...base} className={className}>

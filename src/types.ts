@@ -84,6 +84,16 @@ export interface Mapping {
   categoryId: string;
 }
 
+/** Конфиг локальной (OpenAI-совместимой) LLM, напр. Ollama. */
+export interface LlmConfig {
+  /** Базовый URL OpenAI-совместимого API, напр. http://localhost:11434/v1. */
+  baseUrl: string;
+  /** Имя модели, напр. llama3.1 или qwen2.5. */
+  model: string;
+  /** Включено ли использование ИИ для категоризации. */
+  enabled: boolean;
+}
+
 /** Настройки приложения (вторая БД). */
 export interface Settings {
   key: 'app';
@@ -91,4 +101,6 @@ export interface Settings {
   excludedCategoryIds: string[];
   /** Список профилей (владельцев), выбранных в дашборде. Пусто = все. */
   selectedOwners: string[];
+  /** Конфиг локального ИИ для авто-категоризации (если задан). */
+  llm?: LlmConfig;
 }

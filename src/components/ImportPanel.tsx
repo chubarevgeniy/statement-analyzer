@@ -3,7 +3,9 @@ import { parseFile } from '../parsers';
 import { commitImport, prepareImport, type ImportPrep, type UnknownKey } from '../services/import';
 import { lookupRate } from '../services/fx';
 import { putCategory } from '../db/categoriesDb';
-import type { Category, CategoryKind } from '../types';
+import { allOwners } from '../services/internalTransfers';
+import type { Account, Category, CategoryKind, Settings } from '../types';
+import { ownerLabel } from '../ui/format';
 import { ImportReview, type FxNeedRow } from './ImportReview';
 
 interface FileReport {
@@ -20,11 +22,17 @@ interface PendingResolution {
   fxNeeds: FxNeedRow[];
 }
 
+const AUTO_OWNER = '__auto__';
+
 export function ImportPanel({
   categories,
+  accounts,
+  settings,
   onImported,
 }: {
   categories: Category[];
+  accounts: Account[];
+  settings: Settings;
   onImported: () => Promise<void>;
 }) {
   const [staged, setStaged] = useState<File[]>([]);
@@ -32,8 +40,13 @@ export function ImportPanel({
   const [reports, setReports] = useState<FileReport[]>([]);
   const [pending, setPending] = useState<PendingResolution | null>(null);
   const [choices, setChoices] = useState<Record<string, string>>({});
+  // Принудительный владелец для загружаемых файлов ('__auto__' = из выписки).
+  const [ownerChoice, setOwnerChoice] = useState<string>(AUTO_OWNER);
   // Категории, созданные прямо во время разбора — доступны сразу для следующих операций.
   const [extraCategories, setExtraCategories] = useState<Category[]>([]);
+
+  const owners = useMemo(() => allOwners(accounts), [accounts]);
+  const llmConfig = settings.llm?.enabled ? settings.llm : null;
 
   // Объединяем сохранённые и только что созданные, убирая дубли по id.
   const allCategories = useMemo(() => {
@@ -66,7 +79,8 @@ export function ImportPanel({
     for (const file of staged) {
       try {
         const res = await parseFile(file);
-        const prep = await prepareImport(res, file.name);
+        const ownerOverride = ownerChoice === AUTO_OWNER ? undefined : ownerChoice;
+        const prep = await prepareImport(res, file.name, ownerOverride);
         if (prep.alreadyImported && prep.newCount === 0) {
           doneReports.push({
             fileName: file.name,
@@ -183,6 +197,8 @@ export function ImportPanel({
         fxNeeds={pending.fxNeeds}
         choices={choices}
         busy={busy}
+        llmConfig={llmConfig}
+        onSetChoices={(next) => setChoices((prev) => ({ ...prev, ...next }))}
         onSetRate={(i, rate) =>
           setPending((prev) =>
             prev ? { ...prev, fxNeeds: prev.fxNeeds.map((x, j) => (j === i ? { ...x, rate } : x)) } : prev,
@@ -208,6 +224,31 @@ export function ImportPanel({
         Republic и XLSX-выписка Revolut. Данные обрабатываются только в вашем браузере и никуда не
         отправляются.
       </p>
+
+      {owners.length > 0 && (
+        <div className="import-owner">
+          <label className="muted small" htmlFor="owner-select">
+            Владелец загружаемых счетов:
+          </label>
+          <select
+            id="owner-select"
+            value={ownerChoice}
+            onChange={(e) => setOwnerChoice(e.target.value)}
+            disabled={busy}
+          >
+            <option value={AUTO_OWNER}>Автоматически (из выписки)</option>
+            {owners.map((o) => (
+              <option key={o} value={o}>
+                {ownerLabel(o)}
+              </option>
+            ))}
+          </select>
+          <span className="muted small">
+            Полезно для CSV/XLSX без имени в шапке (напр. экспорт Trade Republic) — назначьте
+            нужный профиль вручную.
+          </span>
+        </div>
+      )}
 
       <label className={`dropzone ${busy ? 'busy' : ''}`}>
         <input
