@@ -4,7 +4,8 @@ import { deleteCategory, deleteMapping, putCategory, resetCategoriesDb } from '.
 import { resetTransactionsDb } from '../db/transactionsDb';
 import { bankLabel, ownerLabel } from '../ui/format';
 import type { ThemeMode } from '../ui/theme';
-import { IconAuto, IconMoon, IconSun } from '../ui/icons';
+import { IconAuto, IconDownload, IconMoon, IconSun, IconUpload } from '../ui/icons';
+import { exportBackup, exportTransactionsCsv, importBackup } from '../services/backup';
 
 const THEME_OPTIONS: { id: ThemeMode; label: string; icon: (p: { className?: string }) => JSX.Element }[] = [
   { id: 'light', label: 'Светлая', icon: IconSun },
@@ -30,6 +31,7 @@ export function SettingsPanel({
   onThemeModeChange: (mode: ThemeMode) => void;
 }) {
   const [newName, setNewName] = useState('');
+  const [backupBusy, setBackupBusy] = useState(false);
 
   async function addCategory() {
     const name = newName.trim();
@@ -57,6 +59,50 @@ export function SettingsPanel({
   }
 
   const catName = (id: string) => categories.find((c) => c.id === id)?.name ?? id;
+
+  async function handleExport() {
+    setBackupBusy(true);
+    try {
+      await exportBackup();
+    } catch (e) {
+      window.alert('Не удалось создать резервную копию: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function handleExportCsv() {
+    setBackupBusy(true);
+    try {
+      await exportTransactionsCsv();
+    } catch (e) {
+      window.alert('Не удалось экспортировать CSV: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // позволяет выбрать тот же файл повторно
+    if (!file) return;
+    if (
+      !window.confirm(
+        'Импорт заменит ВСЕ текущие данные (транзакции, категории, настройки) данными из файла. Продолжить?',
+      )
+    )
+      return;
+    setBackupBusy(true);
+    try {
+      const res = await importBackup(file);
+      await onChange();
+      window.alert(`Восстановлено: ${res.txns} транзакций, ${res.categories} категорий.`);
+    } catch (err) {
+      window.alert('Не удалось импортировать: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setBackupBusy(false);
+    }
+  }
 
   return (
     <div className="panel">
@@ -159,6 +205,36 @@ export function SettingsPanel({
           ))}
           {statements.length === 0 && <li className="muted">Нет импортов.</li>}
         </ul>
+      </section>
+
+      <section>
+        <h3>Резервная копия данных</h3>
+        <p className="muted small">
+          Полная копия (JSON) сохраняет все транзакции, счета, выписки, категории, маппинги и
+          настройки. Её можно импортировать обратно позже или перенести на другое устройство —
+          импорт полностью заменит текущие данные.
+        </p>
+        <div className="backup-actions">
+          <button type="button" onClick={handleExport} disabled={backupBusy}>
+            <IconDownload className="nav-icon" /> Экспорт (JSON)
+          </button>
+          <label className="btn-file">
+            <IconUpload className="nav-icon" /> Импорт (JSON)
+            <input
+              type="file"
+              accept="application/json,.json"
+              onChange={handleImport}
+              disabled={backupBusy}
+            />
+          </label>
+          <button type="button" onClick={handleExportCsv} disabled={backupBusy}>
+            <IconDownload className="nav-icon" /> Транзакции в CSV
+          </button>
+        </div>
+        <p className="muted small" style={{ marginTop: '10px' }}>
+          CSV удобен для просмотра в Excel или Google Таблицах, но не предназначен для обратного
+          импорта — для переноса данных используйте JSON.
+        </p>
       </section>
 
       <section className="danger">

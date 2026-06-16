@@ -105,3 +105,38 @@ export async function resetCategoriesDb(): Promise<void> {
   await deleteDB(DB_NAME);
   await ensureSeeded();
 }
+
+/** Снимок всех данных БД категорий — для резервной копии. */
+export interface CategoriesDump {
+  categories: Category[];
+  mappings: Mapping[];
+  settings: Settings;
+}
+
+export async function dumpCategoriesDb(): Promise<CategoriesDump> {
+  const [categories, mappings, settings] = await Promise.all([
+    getCategories(),
+    getMappings(),
+    getSettings(),
+  ]);
+  return { categories, mappings, settings };
+}
+
+/**
+ * Полностью заменяет содержимое БД категорий данными из резервной копии,
+ * после чего гарантирует наличие встроенных категорий/настроек.
+ */
+export async function restoreCategoriesDb(dump: CategoriesDump): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(['categories', 'mappings', 'settings'], 'readwrite');
+  await Promise.all([
+    tx.objectStore('categories').clear(),
+    tx.objectStore('mappings').clear(),
+    tx.objectStore('settings').clear(),
+  ]);
+  for (const c of dump.categories ?? []) void tx.objectStore('categories').put(c);
+  for (const m of dump.mappings ?? []) void tx.objectStore('mappings').put(m);
+  if (dump.settings) void tx.objectStore('settings').put({ ...dump.settings, key: 'app' });
+  await tx.done;
+  await ensureSeeded();
+}

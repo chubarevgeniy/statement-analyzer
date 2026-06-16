@@ -22,9 +22,27 @@ import { IconEye } from '../ui/icons';
 import type { ResolvedTheme } from '../ui/theme';
 
 const CHART_THEME = {
-  light: { grid: '#e0e4e8', text: '#5b6573', tooltipBg: '#ffffff', tooltipBorder: '#e0e4e8' },
-  dark: { grid: '#2a3142', text: '#9aa5b5', tooltipBg: '#1b2030', tooltipBorder: '#2a3142' },
+  light: {
+    grid: '#e6e9ef',
+    text: '#6b7486',
+    tooltipBg: '#ffffff',
+    tooltipBorder: '#e2e6ef',
+    tooltipShadow: '0 12px 28px -14px rgba(30, 35, 60, 0.25)',
+    cursor: 'rgba(106, 100, 240, 0.08)',
+    panelStroke: '#ffffff',
+  },
+  dark: {
+    grid: '#2a3147',
+    text: '#8e98ac',
+    tooltipBg: '#1a2032',
+    tooltipBorder: '#2a3147',
+    tooltipShadow: '0 12px 32px -12px rgba(0, 0, 0, 0.6)',
+    cursor: 'rgba(123, 118, 245, 0.14)',
+    panelStroke: '#1a2032',
+  },
 };
+
+const TOOLTIP_RADIUS = 12;
 
 export function Dashboard({
   txns,
@@ -44,6 +62,13 @@ export function Dashboard({
   theme: ResolvedTheme;
 }) {
   const ct = CHART_THEME[theme];
+  const tooltipStyle = {
+    background: ct.tooltipBg,
+    border: `1px solid ${ct.tooltipBorder}`,
+    borderRadius: TOOLTIP_RADIUS,
+    boxShadow: ct.tooltipShadow,
+    padding: '8px 12px',
+  };
   const owners = ownersList(accounts);
   const fullRange = useMemo(() => dateRange(txns), [txns]);
   const [start, setStart] = useState(fullRange.start);
@@ -157,7 +182,9 @@ export function Dashboard({
                   data={result.expenseByCategory}
                   dataKey="amount"
                   nameKey="name"
+                  innerRadius={62}
                   outerRadius={100}
+                  paddingAngle={2}
                   label={(p) => (
                     <text x={p.x} y={p.y} textAnchor={p.textAnchor} fill={ct.text} fontSize={12}>
                       {p.name}
@@ -165,12 +192,12 @@ export function Dashboard({
                   )}
                 >
                   {result.expenseByCategory.map((c, i) => (
-                    <Cell key={i} fill={c.color} stroke="none" />
+                    <Cell key={i} fill={c.color} stroke={ct.panelStroke} strokeWidth={2} />
                   ))}
                 </Pie>
                 <Tooltip
                   formatter={(v: number) => formatEur(v)}
-                  contentStyle={{ background: ct.tooltipBg, border: `1px solid ${ct.tooltipBorder}`, borderRadius: 12 }}
+                  contentStyle={tooltipStyle}
                   labelStyle={{ color: ct.text }}
                   itemStyle={{ color: ct.text }}
                 />
@@ -184,20 +211,34 @@ export function Dashboard({
         <div className="chart-box">
           <h4>По месяцам</h4>
           <ResponsiveContainer width="100%" height={280}>
-            <ComposedChart data={result.monthly}>
-              <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
-              <XAxis dataKey="month" tick={{ fill: ct.text, fontSize: 12 }} />
-              <YAxis tick={{ fill: ct.text, fontSize: 12 }} />
+            <ComposedChart data={result.monthly} margin={{ top: 10, right: 8, left: -12, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={ct.grid} />
+              <XAxis
+                dataKey="month"
+                tick={{ fill: ct.text, fontSize: 12 }}
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+              />
+              <YAxis tick={{ fill: ct.text, fontSize: 12 }} tickLine={false} axisLine={false} width={64} />
               <Tooltip
                 formatter={(v: number) => formatEur(v)}
-                contentStyle={{ background: ct.tooltipBg, border: `1px solid ${ct.tooltipBorder}`, borderRadius: 12 }}
+                contentStyle={tooltipStyle}
                 labelStyle={{ color: ct.text }}
                 itemStyle={{ color: ct.text }}
+                cursor={{ fill: ct.cursor }}
               />
-              <Legend wrapperStyle={{ color: ct.text }} />
-              <Bar dataKey="income" name="Доход" fill="#22c55e" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="expense" name="Расход" fill="#ef4444" radius={[6, 6, 0, 0]} />
-              <Line dataKey="cumulativeNet" name="Накоплено (нарастающим)" stroke="#818cf8" strokeWidth={2.5} dot={false} />
+              <Legend wrapperStyle={{ color: ct.text, fontSize: 12, paddingTop: 8 }} iconType="circle" />
+              <Bar dataKey="income" name="Доход" fill="#22c55e" radius={[6, 6, 0, 0]} maxBarSize={28} />
+              <Bar dataKey="expense" name="Расход" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={28} />
+              <Line
+                dataKey="cumulativeNet"
+                name="Накоплено (нарастающим)"
+                stroke="#818cf8"
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={{ r: 5 }}
+              />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -207,16 +248,25 @@ export function Dashboard({
         <h4>Доход по категориям</h4>
         {result.incomeByCategory.length ? (
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={result.incomeByCategory} layout="vertical">
-              <XAxis type="number" tick={{ fill: ct.text, fontSize: 12 }} />
-              <YAxis type="category" dataKey="name" width={140} tick={{ fill: ct.text, fontSize: 12 }} />
+            <BarChart data={result.incomeByCategory} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={ct.grid} />
+              <XAxis type="number" tick={{ fill: ct.text, fontSize: 12 }} tickLine={false} axisLine={false} />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={140}
+                tick={{ fill: ct.text, fontSize: 12 }}
+                tickLine={false}
+                axisLine={false}
+              />
               <Tooltip
                 formatter={(v: number) => formatEur(v)}
-                contentStyle={{ background: ct.tooltipBg, border: `1px solid ${ct.tooltipBorder}`, borderRadius: 12 }}
+                contentStyle={tooltipStyle}
                 labelStyle={{ color: ct.text }}
                 itemStyle={{ color: ct.text }}
+                cursor={{ fill: ct.cursor }}
               />
-              <Bar dataKey="amount" name="Доход" radius={[0, 6, 6, 0]}>
+              <Bar dataKey="amount" name="Доход" radius={[0, 6, 6, 0]} maxBarSize={26}>
                 {result.incomeByCategory.map((c, i) => (
                   <Cell key={i} fill={c.color} />
                 ))}
