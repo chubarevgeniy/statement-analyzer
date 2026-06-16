@@ -3,6 +3,7 @@
    фоне, мягкие скругления, один яркий акцент). Светлая — через [data-theme="light"]. */
 :root,
 [data-theme='dark'] {
+  color-scheme: dark;
   --bg: #10131c;
   --bg-soft: #151a26;
   --panel: #1a2032;
@@ -20,6 +21,7 @@
 }
 
 [data-theme='light'] {
+  color-scheme: light;
   --bg: #f3f5fa;
   --bg-soft: #ffffff;
   --panel: #ffffff;
@@ -140,10 +142,21 @@ nav button.active {
   font-size: 12px;
 }
 
+/* Базовый вид кнопки — вторичная кнопка в тон темы.
+   Не даём браузерным дефолтам (белая кнопка в тёмной теме) просочиться.
+   Кнопки с собственным классом (.btn-primary, .chip, nav button и т.д.)
+   переопределяют эти стили. */
 button {
   font-size: 14px;
   cursor: pointer;
   font-family: inherit;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 9px 16px;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
 input,
@@ -682,8 +695,15 @@ td.pos {
 .link {
   background: none;
   border: none;
+  border-radius: 0;
   color: var(--accent);
   margin-left: 8px;
+  padding: 0;
+  font-weight: 600;
+}
+
+.link:hover {
+  text-decoration: underline;
 }
 
 .inline-add {
@@ -714,6 +734,43 @@ section h3 {
   padding: 9px 16px;
   border-radius: 999px;
   margin-right: 8px;
+}
+
+/* ── Резервная копия / экспорт-импорт ── */
+.backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.backup-actions button,
+.btn-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.btn-file {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.backup-actions button:hover,
+.btn-file:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-file input {
+  display: none;
 }
 
 /* Сегментированный переключатель (тема и т.п.) */

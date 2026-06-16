@@ -101,3 +101,23 @@ export function IconEye({ className }: IconProps) {
     </svg>
   );
 }
+
+export function IconDownload({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 3.5v11" />
+      <path d="M7.5 10 12 14.5 16.5 10" />
+      <path d="M4.5 19.5h15" />
+    </svg>
+  );
+}
+
+export function IconUpload({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 14.5v-11" />
+      <path d="M7.5 8 12 3.5 16.5 8" />
+      <path d="M4.5 19.5h15" />
+    </svg>
+  );
+}

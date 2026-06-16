@@ -112,6 +112,10 @@ export async function putFxRate(rate: FxRate): Promise<void> {
   await (await getDB()).put('fxRates', rate);
 }
 
+export async function getAllFxRates(): Promise<FxRate[]> {
+  return (await getDB()).getAll('fxRates') as Promise<FxRate[]>;
+}
+
 /** Полный сброс БД транзакций. */
 export async function resetTransactionsDb(): Promise<void> {
   if (dbPromise) {
@@ -119,6 +123,41 @@ export async function resetTransactionsDb(): Promise<void> {
     dbPromise = null;
   }
   await deleteDB(DB_NAME);
+}
+
+/** Снимок всех данных БД транзакций — для резервной копии. */
+export interface TransactionsDump {
+  transactions: StoredTxn[];
+  accounts: Account[];
+  statements: StatementMeta[];
+  fxRates: FxRate[];
+}
+
+export async function dumpTransactionsDb(): Promise<TransactionsDump> {
+  const [transactions, accounts, statements, fxRates] = await Promise.all([
+    getAllTxns(),
+    getAllAccounts(),
+    getAllStatements(),
+    getAllFxRates(),
+  ]);
+  return { transactions, accounts, statements, fxRates };
+}
+
+/** Полностью заменяет содержимое БД транзакций данными из резервной копии. */
+export async function restoreTransactionsDb(dump: TransactionsDump): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(['transactions', 'accounts', 'statements', 'fxRates'], 'readwrite');
+  await Promise.all([
+    tx.objectStore('transactions').clear(),
+    tx.objectStore('accounts').clear(),
+    tx.objectStore('statements').clear(),
+    tx.objectStore('fxRates').clear(),
+  ]);
+  for (const t of dump.transactions ?? []) void tx.objectStore('transactions').put(t);
+  for (const a of dump.accounts ?? []) void tx.objectStore('accounts').put(a);
+  for (const s of dump.statements ?? []) void tx.objectStore('statements').put(s);
+  for (const f of dump.fxRates ?? []) void tx.objectStore('fxRates').put(f);
+  await tx.done;
 }
 
 export type { TxDBSchema };
