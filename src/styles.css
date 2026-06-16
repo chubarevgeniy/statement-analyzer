@@ -375,12 +375,25 @@ input[type='radio'] {
   margin-bottom: 14px;
 }
 
+@media (max-width: 600px) {
+  .chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+  }
+  .chips::-webkit-scrollbar {
+    display: none; /* Safari and Chrome */
+  }
+}
+
 .chip {
   border: 1px solid var(--border);
   background: var(--panel-2);
   color: var(--text);
   padding: 7px 16px;
   border-radius: 999px;
+  white-space: nowrap;
 }
 
 .chip.active {
@@ -395,6 +408,28 @@ input[type='radio'] {
   gap: 12px;
   margin-bottom: 18px;
   flex-wrap: wrap;
+}
+
+.period-inputs .period-dates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2px 4px;
+}
+
+.period-inputs .period-dates input {
+  border: none;
+  background: transparent;
+  padding: 7px 8px;
+}
+
+.period-inputs .period-dates input:focus {
+  outline: none;
+  background: var(--panel);
+  border-radius: 8px;
 }
 
 .period button {
@@ -416,6 +451,16 @@ input[type='radio'] {
   background: var(--panel-2);
   border-radius: 16px;
   padding: 16px 18px;
+}
+
+.card.full-width {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 600px) {
+  .cards {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .card-title {

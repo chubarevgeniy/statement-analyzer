@@ -113,13 +113,12 @@ export function Dashboard({
         </div>
       )}
 
-      <div className="period">
-        <label>
-          С <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
-        </label>
-        <label>
-          по <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
-        </label>
+      <div className="period period-inputs">
+        <div className="period-dates">
+          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} aria-label="С" />
+          <span className="muted">–</span>
+          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} aria-label="по" />
+        </div>
         <button
           onClick={() => {
             setStart(fullRange.start);
@@ -131,13 +130,19 @@ export function Dashboard({
       </div>
 
       <div className="cards">
-        <Card title="Заработано" value={result.income} accent="green" />
-        <Card title="Потрачено" value={result.expense} accent="red" />
-        <Card title="Накоплено" value={result.net} accent={result.net >= 0 ? 'green' : 'red'} />
+        <Card title="Доходы" value={result.income} accent="green" />
+        <Card title="Расходы" value={result.expense} accent="red" />
+        <Card title="Сальдо (разница)" value={result.net} accent={result.net >= 0 ? 'green' : 'red'} fullWidth />
         <Card title="В инвестиции" value={result.savingsContributions} accent="blue" />
-        <Card title="Осталось кэшем" value={cashRemaining} accent="neutral" />
+        <Card title="Изменение кэша" value={cashRemaining} accent="neutral" />
       </div>
-      <p className="muted small">
+      {cashRemaining < 0 && (
+        <p className="warn small" style={{ marginTop: '12px', marginBottom: '8px' }}>
+          Отрицательное изменение кэша означает, что в инвестиции переведено больше,
+          чем составило сальдо за выбранный период (разница покрыта из прошлых накоплений).
+        </p>
+      )}
+      <p className="muted small" style={{ marginTop: '8px' }}>
         Внутренних переводов исключено на {formatEur(result.internalVolume)} · операций учтено:{' '}
         {result.txCount}
       </p>
@@ -264,9 +269,9 @@ export function Dashboard({
   );
 }
 
-function Card({ title, value, accent }: { title: string; value: number; accent: string }) {
+function Card({ title, value, accent, fullWidth }: { title: string; value: number; accent: string; fullWidth?: boolean }) {
   return (
-    <div className={`card ${accent}`}>
+    <div className={`card ${accent} ${fullWidth ? 'full-width' : ''}`}>
       <div className="card-title">{title}</div>
       <div className="card-value">{formatEur(value)}</div>
     </div>
