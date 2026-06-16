@@ -1,9 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Account, Category, StoredTxn } from '../types';
-import { updateTxnCategory } from '../db/transactionsDb';
-import { putMapping } from '../db/categoriesDb';
+import { assignCategory } from '../services/categorize';
 import { resolveCounterpartyOwners } from '../services/internalTransfers';
-import { categoryKey } from '../services/categoryKey';
 import { bankLabel, formatDate, formatEur, ownerLabel } from '../ui/format';
 
 export function TransactionsTable({
@@ -11,15 +9,22 @@ export function TransactionsTable({
   accounts,
   categories,
   onChange,
+  presetCategoryId,
 }: {
   txns: StoredTxn[];
   accounts: Account[];
   categories: Category[];
   onChange: () => Promise<void>;
+  /** Извне заданный фильтр по категории (например, переход «посмотреть» с дашборда). */
+  presetCategoryId?: string | null;
 }) {
   const [query, setQuery] = useState('');
   const [ownerFilter, setOwnerFilter] = useState('');
   const [catFilter, setCatFilter] = useState('');
+
+  useEffect(() => {
+    if (presetCategoryId !== undefined) setCatFilter(presetCategoryId ?? '__none__');
+  }, [presetCategoryId]);
 
   const cpOwner = useMemo(() => resolveCounterpartyOwners(txns, accounts), [txns, accounts]);
   const owners = useMemo(() => Array.from(new Set(accounts.map((a) => a.owner))), [accounts]);
@@ -41,12 +46,7 @@ export function TransactionsTable({
   }, [txns, query, ownerFilter, catFilter]);
 
   async function changeCategory(t: StoredTxn, categoryId: string) {
-    await updateTxnCategory(t.id, categoryId || null);
-    // Запоминаем маппинг, чтобы будущие такие операции категоризировались сами.
-    if (categoryId && !t.isTransfer) {
-      const key = categoryKey(t);
-      if (key) await putMapping({ key, categoryId });
-    }
+    await assignCategory(t, categoryId || null);
     await onChange();
   }
 

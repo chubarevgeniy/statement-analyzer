@@ -3,6 +3,14 @@ import type { Account, Category, Mapping, StatementMeta } from '../types';
 import { deleteCategory, deleteMapping, putCategory, resetCategoriesDb } from '../db/categoriesDb';
 import { resetTransactionsDb } from '../db/transactionsDb';
 import { bankLabel, ownerLabel } from '../ui/format';
+import type { ThemeMode } from '../ui/theme';
+import { IconAuto, IconMoon, IconSun } from '../ui/icons';
+
+const THEME_OPTIONS: { id: ThemeMode; label: string; icon: (p: { className?: string }) => JSX.Element }[] = [
+  { id: 'light', label: 'Светлая', icon: IconSun },
+  { id: 'dark', label: 'Тёмная', icon: IconMoon },
+  { id: 'system', label: 'Системная', icon: IconAuto },
+];
 
 export function SettingsPanel({
   categories,
@@ -10,12 +18,16 @@ export function SettingsPanel({
   accounts,
   statements,
   onChange,
+  themeMode,
+  onThemeModeChange,
 }: {
   categories: Category[];
   mappings: Mapping[];
   accounts: Account[];
   statements: StatementMeta[];
   onChange: () => Promise<void>;
+  themeMode: ThemeMode;
+  onThemeModeChange: (mode: ThemeMode) => void;
 }) {
   const [newName, setNewName] = useState('');
 
@@ -49,6 +61,26 @@ export function SettingsPanel({
   return (
     <div className="panel">
       <h2>Настройки</h2>
+
+      <section>
+        <h3>Оформление</h3>
+        <p className="muted small">Тема</p>
+        <div className="segmented">
+          {THEME_OPTIONS.map((o) => {
+            const Icon = o.icon;
+            return (
+              <button
+                key={o.id}
+                type="button"
+                className={themeMode === o.id ? 'active' : ''}
+                onClick={() => onThemeModeChange(o.id)}
+              >
+                <Icon className="nav-icon" /> {o.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       <section>
         <h3>Категории</h3>

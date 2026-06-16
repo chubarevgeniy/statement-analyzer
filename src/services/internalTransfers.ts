@@ -38,6 +38,11 @@ export function resolveCounterpartyOwners(
   }
 
   for (const t of txns) {
+    if (t.manualTransferOwner !== undefined) {
+      result.set(t.id, t.manualTransferOwner);
+      continue;
+    }
+
     let owner: string | null = null;
 
     if (t.counterpartyIban && ibanOwner.has(t.counterpartyIban)) {

@@ -18,6 +18,13 @@ import type { Account, Category, Settings, StoredTxn } from '../types';
 import { analyze, dateRange, ownersList } from '../services/analytics';
 import { putSettings } from '../db/categoriesDb';
 import { formatEur, ownerLabel } from '../ui/format';
+import { IconEye } from '../ui/icons';
+import type { ResolvedTheme } from '../ui/theme';
+
+const CHART_THEME = {
+  light: { grid: '#e0e4e8', text: '#5b6573', tooltipBg: '#ffffff', tooltipBorder: '#e0e4e8' },
+  dark: { grid: '#2a3142', text: '#9aa5b5', tooltipBg: '#1b2030', tooltipBorder: '#2a3142' },
+};
 
 export function Dashboard({
   txns,
@@ -25,13 +32,18 @@ export function Dashboard({
   categories,
   settings,
   onSettingsChange,
+  onViewCategory,
+  theme,
 }: {
   txns: StoredTxn[];
   accounts: Account[];
   categories: Category[];
   settings: Settings;
   onSettingsChange: () => Promise<void>;
+  onViewCategory: (categoryId: string | null) => void;
+  theme: ResolvedTheme;
 }) {
+  const ct = CHART_THEME[theme];
   const owners = ownersList(accounts);
   const fullRange = useMemo(() => dateRange(txns), [txns]);
   const [start, setStart] = useState(fullRange.start);
@@ -141,13 +153,22 @@ export function Dashboard({
                   dataKey="amount"
                   nameKey="name"
                   outerRadius={100}
-                  label={(e) => e.name}
+                  label={(p) => (
+                    <text x={p.x} y={p.y} textAnchor={p.textAnchor} fill={ct.text} fontSize={12}>
+                      {p.name}
+                    </text>
+                  )}
                 >
                   {result.expenseByCategory.map((c, i) => (
-                    <Cell key={i} fill={c.color} />
+                    <Cell key={i} fill={c.color} stroke="none" />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: number) => formatEur(v)} />
+                <Tooltip
+                  formatter={(v: number) => formatEur(v)}
+                  contentStyle={{ background: ct.tooltipBg, border: `1px solid ${ct.tooltipBorder}`, borderRadius: 12 }}
+                  labelStyle={{ color: ct.text }}
+                  itemStyle={{ color: ct.text }}
+                />
               </PieChart>
             </ResponsiveContainer>
           ) : (
@@ -159,14 +180,19 @@ export function Dashboard({
           <h4>По месяцам</h4>
           <ResponsiveContainer width="100%" height={280}>
             <ComposedChart data={result.monthly}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(v: number) => formatEur(v)} />
-              <Legend />
-              <Bar dataKey="income" name="Доход" fill="#43a047" />
-              <Bar dataKey="expense" name="Расход" fill="#e53935" />
-              <Line dataKey="cumulativeNet" name="Накоплено (нарастающим)" stroke="#1976d2" />
+              <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+              <XAxis dataKey="month" tick={{ fill: ct.text, fontSize: 12 }} />
+              <YAxis tick={{ fill: ct.text, fontSize: 12 }} />
+              <Tooltip
+                formatter={(v: number) => formatEur(v)}
+                contentStyle={{ background: ct.tooltipBg, border: `1px solid ${ct.tooltipBorder}`, borderRadius: 12 }}
+                labelStyle={{ color: ct.text }}
+                itemStyle={{ color: ct.text }}
+              />
+              <Legend wrapperStyle={{ color: ct.text }} />
+              <Bar dataKey="income" name="Доход" fill="#22c55e" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="expense" name="Расход" fill="#ef4444" radius={[6, 6, 0, 0]} />
+              <Line dataKey="cumulativeNet" name="Накоплено (нарастающим)" stroke="#818cf8" strokeWidth={2.5} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -177,10 +203,15 @@ export function Dashboard({
         {result.incomeByCategory.length ? (
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={result.incomeByCategory} layout="vertical">
-              <XAxis type="number" />
-              <YAxis type="category" dataKey="name" width={140} />
-              <Tooltip formatter={(v: number) => formatEur(v)} />
-              <Bar dataKey="amount" name="Доход">
+              <XAxis type="number" tick={{ fill: ct.text, fontSize: 12 }} />
+              <YAxis type="category" dataKey="name" width={140} tick={{ fill: ct.text, fontSize: 12 }} />
+              <Tooltip
+                formatter={(v: number) => formatEur(v)}
+                contentStyle={{ background: ct.tooltipBg, border: `1px solid ${ct.tooltipBorder}`, borderRadius: 12 }}
+                labelStyle={{ color: ct.text }}
+                itemStyle={{ color: ct.text }}
+              />
+              <Bar dataKey="amount" name="Доход" radius={[0, 6, 6, 0]}>
                 {result.incomeByCategory.map((c, i) => (
                   <Cell key={i} fill={c.color} />
                 ))}
@@ -193,26 +224,38 @@ export function Dashboard({
       </div>
 
       <div className="exclusions">
-        <h4>Исключить категории из подсчётов</h4>
+        <h4>Категории</h4>
         <p className="muted small">
-          По умолчанию исключены внутренние переводы и накопления/инвестиции. Можно исключить и
-          другие (например, внос наличных).
+          Снимите галочку, чтобы исключить категорию из подсчётов (по умолчанию исключены
+          внутренние переводы и накопления/инвестиции). Иконкой глаза можно открыть конкретные
+          операции этой категории и при необходимости перенести их в другую.
         </p>
         <div className="exclusion-grid">
           {result.allCategoryTotals.map((c) => {
             const id = c.categoryId ?? '__none__';
             const excluded = settings.excludedCategoryIds.includes(id);
             return (
-              <label key={id} className="exclusion-item">
-                <input
-                  type="checkbox"
-                  checked={!excluded}
-                  onChange={() => toggleCategory(id)}
-                  disabled={id === '__none__'}
-                />
-                <span style={{ color: c.color }}>●</span> {c.name}
-                <span className="muted small"> {formatEur(c.amount)}</span>
-              </label>
+              <div key={id} className="exclusion-item">
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={!excluded}
+                    onChange={() => toggleCategory(id)}
+                    disabled={id === '__none__'}
+                  />
+                  <span className="pill-dot" style={{ background: c.color }} />
+                  <span className="exclusion-name">{c.name}</span>
+                </label>
+                <span className="muted small">{formatEur(c.amount)}</span>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  title="Посмотреть операции"
+                  onClick={() => onViewCategory(c.categoryId)}
+                >
+                  <IconEye />
+                </button>
+              </div>
             );
           })}
         </div>

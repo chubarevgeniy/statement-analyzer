@@ -64,6 +64,23 @@ export async function updateTxnCategory(id: string, categoryId: string | null): 
   }
 }
 
+/**
+ * Ручная привязка перевода к владельцу-контрагенту (или `null` — подтверждённо внешний).
+ * `undefined` сбрасывает ручную привязку — определение вернётся к автоматическому.
+ */
+export async function updateTxnManualTransferOwner(
+  id: string,
+  owner: string | null | undefined,
+): Promise<void> {
+  const db = await getDB();
+  const t = (await db.get('transactions', id)) as StoredTxn | undefined;
+  if (t) {
+    if (owner === undefined) delete t.manualTransferOwner;
+    else t.manualTransferOwner = owner;
+    await db.put('transactions', t);
+  }
+}
+
 export async function getAllAccounts(): Promise<Account[]> {
   return (await getDB()).getAll('accounts') as Promise<Account[]>;
 }
