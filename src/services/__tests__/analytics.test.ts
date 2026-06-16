@@ -81,6 +81,24 @@ describe('analyze', () => {
     expect(r.expense).toBeCloseTo(500);
   });
 
+  it('считает вклад в накопления нетто (продажа уменьшает метрику)', () => {
+    const withTrades = [
+      ...txns,
+      txn({ id: 'f', amount: -400, type: 'trade', categoryId: 'savings' }), // покупка
+      txn({ id: 'g', amount: 250, type: 'trade', categoryId: 'savings' }), // продажа/вывод
+    ];
+    const r = analyze(withTrades, accounts, BUILTIN_CATEGORIES, {
+      period: { start: '2026-01-01', end: '2026-01-31' },
+      selectedOwners: ['test person'],
+      excludedCategoryIds: ['internal', 'savings'],
+    });
+    // 400 вложено − 250 выведено = 150 чистыми.
+    expect(r.savingsContributions).toBeCloseTo(150);
+    // savings исключена из дохода/расхода с обеих сторон.
+    expect(r.income).toBeCloseTo(1000);
+    expect(r.expense).toBeCloseTo(500);
+  });
+
   it('dateRange возвращает границы', () => {
     expect(dateRange(txns)).toEqual({ start: '2026-01-15', end: '2026-01-15' });
   });

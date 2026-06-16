@@ -26,7 +26,11 @@ export interface AnalyticsResult {
   expense: number;
   /** Накоплено = доход − расход (вложения в инвестиции считаются накоплением). */
   net: number;
-  /** Сколько ушло в накопления/инвестиции (категории вида savings). */
+  /**
+   * Чистый вклад в накопления/инвестиции (категории вида savings):
+   * оттоки (покупки/пополнения) минус возвраты (продажи/выводы).
+   * Может быть отрицательным, если из инвестиций выведено больше, чем вложено.
+   */
   savingsContributions: number;
   /** Объём внутренних переводов (для информации, в подсчёт не входит). */
   internalVolume: number;
@@ -98,9 +102,11 @@ export function analyze(
     const catId = t.categoryId ?? UNCATEGORIZED;
     const cat = t.categoryId ? catById.get(t.categoryId) : undefined;
 
-    // Накопительный вклад (инвестиции) — отдельной метрикой.
-    if (cat?.kind === 'savings' && t.eurAmount < 0) {
-      savingsContributions += Math.abs(t.eurAmount);
+    // Чистый вклад в накопления/инвестиции: оттоки минус возвраты.
+    // Так покупка/пополнение увеличивает метрику, а продажа/вывод — уменьшает,
+    // поэтому при активной торговле сумма не раздувается оборотом.
+    if (cat?.kind === 'savings') {
+      savingsContributions += -t.eurAmount;
     }
 
     // Сумма по всем категориям (для переключателей), знаковая.
