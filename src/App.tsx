@@ -12,9 +12,16 @@ type Tab = 'dashboard' | 'import' | 'transactions' | 'settings';
 const TABS: { id: Tab; label: string; icon: (p: { className?: string }) => JSX.Element }[] = [
   { id: 'dashboard', label: 'Дашборд', icon: IconDashboard },
   { id: 'import', label: 'Импорт', icon: IconImport },
-  { id: 'transactions', label: 'Транзакции', icon: IconList },
-  { id: 'settings', label: 'Настройки', icon: IconSettings },
+  { id: 'transactions', label: 'Операции', icon: IconList },
+  { id: 'settings', label: 'Ещё', icon: IconSettings },
 ];
+
+const TITLES: Record<Tab, string> = {
+  dashboard: 'Дашборд',
+  import: 'Импорт',
+  transactions: 'Операции',
+  settings: 'Настройки',
+};
 
 export default function App() {
   const data = useAppData();
@@ -27,36 +34,20 @@ export default function App() {
     setTab('transactions');
   }
 
-  function renderNav(className: string) {
-    return (
-      <nav className={className}>
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          return (
-            <button
-              key={t.id}
-              className={tab === t.id ? 'active' : ''}
-              onClick={() => setTab(t.id)}
-            >
-              <Icon className="nav-icon" />
-              <span>{t.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-    );
-  }
-
   return (
     <div className="app">
-      <header>
-        <h1>Анализатор выписок</h1>
-        {renderNav('nav-top')}
+      <header className="app-header">
+        <div>
+          <span className="app-subtitle">Анализатор выписок</span>
+          <h1 className="app-title">{TITLES[tab]}</h1>
+        </div>
       </header>
 
-      <main>
+      <main className="app-main">
         {data.loading ? (
-          <p className="muted">Загрузка…</p>
+          <div className="screen">
+            <p className="muted">Загрузка…</p>
+          </div>
         ) : tab === 'dashboard' ? (
           <Dashboard
             txns={data.txns}
@@ -97,12 +88,23 @@ export default function App() {
         )}
       </main>
 
-      {renderNav('nav-bottom')}
-
-      <footer className="muted small">
-        Все данные хранятся локально в вашем браузере (IndexedDB). Ничего не отправляется на
-        сервер.
-      </footer>
+      <nav className="tabbar">
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              className={`tab ${tab === t.id ? 'active' : ''}`}
+              onClick={() => setTab(t.id)}
+            >
+              <span className="tab-icon">
+                <Icon />
+              </span>
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }

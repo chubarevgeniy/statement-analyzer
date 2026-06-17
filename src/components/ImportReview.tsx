@@ -3,6 +3,7 @@ import type { Category, CategoryKind, LlmConfig } from '../types';
 import type { UnknownKey } from '../services/import';
 import { suggestCategoriesLlm, type LlmItem } from '../services/llm';
 import { bankLabel, formatDate, formatEur } from '../ui/format';
+import { IconClose, IconSparkles } from '../ui/icons';
 
 const KIND_LABELS: Record<CategoryKind, string> = {
   income: 'Доход',
@@ -96,8 +97,8 @@ export function ImportReview({
   return (
     <div className="review">
       <div className="review-top">
-        <button type="button" className="review-close" onClick={onCancel} disabled={busy}>
-          ✕
+        <button type="button" className="icon-btn" onClick={onCancel} disabled={busy} aria-label="Закрыть">
+          <IconClose />
         </button>
         <div className="review-progress">
           <div className="review-progress-bar">
@@ -112,8 +113,8 @@ export function ImportReview({
           </span>
         </div>
         {llmConfig && onSetChoices && unknownKeys.length > 0 && (
-          <button type="button" className="ai-btn" onClick={runAi} disabled={busy || aiBusy}>
-            {aiBusy ? '🤖 …' : '🤖 ИИ'}
+          <button type="button" className="btn" onClick={runAi} disabled={busy || aiBusy}>
+            <IconSparkles /> {aiBusy ? '…' : 'ИИ'}
           </button>
         )}
       </div>
@@ -148,18 +149,16 @@ export function ImportReview({
       </div>
 
       <div className="review-nav">
-        <button type="button" onClick={prev} disabled={busy || step === 0}>
-          ← Назад
+        <button type="button" className="btn" onClick={prev} disabled={busy || step === 0}>
+          Назад
         </button>
         {isConfirmStep ? (
-          <button type="button" className="primary" onClick={onConfirm} disabled={busy}>
+          <button type="button" className="btn btn-primary" onClick={onConfirm} disabled={busy}>
             {busy ? 'Импорт…' : 'Импортировать'}
           </button>
         ) : (
-          <button type="button" className="primary" onClick={next} disabled={busy}>
-            {isFxStep || !choices[unknownKeys[step - fxNeeds.length]?.key]
-              ? 'Пропустить →'
-              : 'Далее →'}
+          <button type="button" className="btn btn-primary" onClick={next} disabled={busy}>
+            {isFxStep || !choices[unknownKeys[step - fxNeeds.length]?.key] ? 'Пропустить' : 'Далее'}
           </button>
         )}
       </div>
@@ -254,8 +253,8 @@ function CategoryStep({
           : `${item.sampleAmount.toFixed(2)} ${item.sampleCurrency}`}
       </div>
       <div className="review-meta">
-        <span className="review-tag">{bankLabel(item.sampleBank)}</span>
-        {item.count > 1 && <span className="review-tag">встречается {item.count}×</span>}
+        <span className="tag">{bankLabel(item.sampleBank)}</span>
+        {item.count > 1 && <span className="tag">встречается {item.count}×</span>}
       </div>
 
       <div className="review-pick-label muted">Выберите категорию:</div>
@@ -276,7 +275,7 @@ function CategoryStep({
             className={`pill ${selectedId === c.id ? 'selected' : ''}`}
             onClick={() => onPick(c.id)}
           >
-            <span className="pill-dot" style={{ background: c.color }} />
+            <span className="dot" style={{ background: c.color }} />
             {c.name}
           </button>
         ))}
@@ -310,10 +309,10 @@ function CategoryStep({
             ))}
           </div>
           <div className="cat-create-actions">
-            <button type="button" onClick={() => setCreating(false)} disabled={saving}>
+            <button type="button" className="btn" onClick={() => setCreating(false)} disabled={saving}>
               Отмена
             </button>
-            <button type="button" className="primary" onClick={commitNew} disabled={saving || !name.trim()}>
+            <button type="button" className="btn btn-primary" onClick={commitNew} disabled={saving || !name.trim()}>
               {saving ? 'Сохранение…' : 'Создать и выбрать'}
             </button>
           </div>
@@ -368,7 +367,7 @@ function ConfirmStep({
               <span className={cat ? '' : 'muted'}>
                 {cat ? (
                   <>
-                    <span className="pill-dot" style={{ background: cat.color }} /> {cat.name}
+                    <span className="dot" style={{ background: cat.color }} /> {cat.name}
                   </>
                 ) : (
                   'без категории'

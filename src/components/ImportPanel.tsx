@@ -6,6 +6,7 @@ import { putCategory } from '../db/categoriesDb';
 import { allOwners } from '../services/internalTransfers';
 import type { Account, Category, CategoryKind, Settings } from '../types';
 import { ownerLabel } from '../ui/format';
+import { IconClose, IconImport } from '../ui/icons';
 import { ImportReview, type FxNeedRow } from './ImportReview';
 
 interface FileReport {
@@ -217,25 +218,17 @@ export function ImportPanel({
   }
 
   return (
-    <div className="panel">
-      <h2>Импорт выписок</h2>
-      <p className="muted">
+    <div className="screen">
+      <p className="muted small" style={{ margin: 0 }}>
         Поддерживаются PDF Deutsche Bank, Trade Republic и Revolut, а также CSV-экспорт Trade
-        Republic и XLSX-выписка Revolut. Данные обрабатываются только в вашем браузере и никуда не
+        Republic и XLSX-выписка Revolut. Файлы обрабатываются только в браузере и никуда не
         отправляются.
       </p>
 
       {owners.length > 0 && (
-        <div className="import-owner">
-          <label className="muted small" htmlFor="owner-select">
-            Владелец загружаемых счетов:
-          </label>
-          <select
-            id="owner-select"
-            value={ownerChoice}
-            onChange={(e) => setOwnerChoice(e.target.value)}
-            disabled={busy}
-          >
+        <div className="field">
+          <span className="field-label">Владелец загружаемых счетов</span>
+          <select value={ownerChoice} onChange={(e) => setOwnerChoice(e.target.value)} disabled={busy}>
             <option value={AUTO_OWNER}>Автоматически (из выписки)</option>
             {owners.map((o) => (
               <option key={o} value={o}>
@@ -244,8 +237,7 @@ export function ImportPanel({
             ))}
           </select>
           <span className="muted small">
-            Полезно для CSV/XLSX без имени в шапке (напр. экспорт Trade Republic) — назначьте
-            нужный профиль вручную.
+            Полезно для CSV/XLSX без имени в шапке (напр. экспорт Trade Republic).
           </span>
         </div>
       )}
@@ -261,12 +253,15 @@ export function ImportPanel({
             e.target.value = '';
           }}
         />
-        <span className="dropzone-icon">📄</span>
-        <span className="dropzone-text">
-          {staged.length > 0 ? 'Добавить ещё файлы' : 'Выберите выписки (PDF / CSV / XLSX)'}
+        <span className="dropzone-badge">
+          <IconImport />
+        </span>
+        <span className="dropzone-title">
+          {staged.length > 0 ? 'Добавить ещё файлы' : 'Выберите выписки'}
         </span>
         <span className="muted small">
-          Загрузите выписки всех счетов сразу — так внутренние переводы определятся автоматически.
+          PDF / CSV / XLSX. Загрузите все счета сразу — внутренние переводы определятся
+          автоматически.
         </span>
       </label>
 
@@ -275,42 +270,40 @@ export function ImportPanel({
           <ul className="staged-list">
             {staged.map((f, i) => (
               <li key={`${f.name}:${f.size}`} className="staged-item">
-                <span className="staged-name">📎 {f.name}</span>
+                <span className="staged-name">{f.name}</span>
                 <button
                   type="button"
-                  className="staged-remove"
+                  className="icon-btn"
                   onClick={() => removeStaged(i)}
                   disabled={busy}
                   aria-label="Убрать файл"
                 >
-                  ✕
+                  <IconClose />
                 </button>
               </li>
             ))}
           </ul>
-          <button type="button" className="btn-primary block" onClick={handleProcess} disabled={busy}>
+          <button type="button" className="btn btn-primary btn-lg btn-block" onClick={handleProcess} disabled={busy}>
             {busy ? 'Обработка…' : `Разобрать ${staged.length} файл(ов)`}
           </button>
         </>
       )}
 
       {reports.length > 0 && (
-        <ul className="reports">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {reports.map((r, i) => (
-            <li key={i} className={`report ${r.status}`}>
+            <div key={i} className={`report ${r.status}`}>
               <strong>{r.fileName}</strong>:{' '}
               {r.status === 'ok' && `добавлено ${r.added}, пропущено дублей ${r.duplicates}`}
               {r.status === 'duplicate' && r.message}
               {r.status === 'error' && `ошибка — ${r.message}`}
-            </li>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
 
       {reports.some((r) => r.status === 'ok') && (
-        <p className="muted small">
-          Готово. Откройте «Дашборд» или «Транзакции», чтобы посмотреть результат.
-        </p>
+        <p className="muted small">Готово. Откройте «Дашборд» или «Операции», чтобы посмотреть результат.</p>
       )}
     </div>
   );
