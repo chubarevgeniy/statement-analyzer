@@ -94,6 +94,18 @@ export interface LlmConfig {
   enabled: boolean;
 }
 
+/** Настройки отображения графика «Доходы и расходы по месяцам». */
+export interface ChartSettings {
+  /** Показывать столбцы доходов. */
+  showIncome: boolean;
+  /** Показывать столбцы расходов. */
+  showExpense: boolean;
+  /** Показывать линию сальдо (доход − расход за месяц). */
+  showNet: boolean;
+  /** Показывать линию накопленного итога (нарастающим итогом). */
+  showCumulative: boolean;
+}
+
 /** Настройки приложения (вторая БД). */
 export interface Settings {
   key: 'app';
@@ -103,4 +115,6 @@ export interface Settings {
   selectedOwners: string[];
   /** Конфиг локального ИИ для авто-категоризации (если задан). */
   llm?: LlmConfig;
+  /** Настройки кастомизации графика по месяцам. */
+  chart?: ChartSettings;
 }

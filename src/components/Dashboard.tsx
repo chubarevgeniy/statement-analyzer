@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   Bar,
   BarChart,
@@ -26,9 +26,10 @@ import {
   yearPeriod,
   type CategoryDelta,
 } from '../services/analytics';
-import { putSettings } from '../db/categoriesDb';
+import { DEFAULT_CHART_SETTINGS, putSettings } from '../db/categoriesDb';
 import { formatEur, ownerLabel } from '../ui/format';
-import { IconArrowDownRight, IconArrowUpRight, IconEye } from '../ui/icons';
+import { IconArrowDownRight, IconArrowUpRight, IconChevronRight, IconEye } from '../ui/icons';
+import type { ChartSettings } from '../types';
 import type { ResolvedTheme } from '../ui/theme';
 import type { TxnView } from './TransactionsTable';
 
@@ -61,6 +62,44 @@ function monthLabel(ym: string, withYear = false): string {
   const d = new Date(y, m - 1, 1);
   const s = (withYear ? monthFmt : monthShortFmt).format(d);
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * Сворачиваемая секция-карточка. Заголовок с шевроном справа; по клику
+ * скрывает/раскрывает содержимое. Состояние локальное (по умолчанию раскрыто).
+ */
+function Collapsible({
+  title,
+  children,
+  defaultOpen = true,
+  actions,
+}: {
+  title: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+  /** Доп. содержимое заголовка (например, переключатели), не сворачивается. */
+  actions?: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className={`chart-card collapsible ${open ? 'open' : 'closed'}`}>
+      <button
+        type="button"
+        className="collapsible-head"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="card-heading">{title}</span>
+        <IconChevronRight className="chevron" />
+      </button>
+      {open && (
+        <div className="collapsible-body">
+          {actions}
+          {children}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function Dashboard({
@@ -229,6 +268,11 @@ function OverviewView({
     void onPersist({ ...settings, excludedCategoryIds: next });
   }
 
+  const chart: ChartSettings = settings.chart ?? DEFAULT_CHART_SETTINGS;
+  function toggleSeries(key: keyof ChartSettings) {
+    void onPersist({ ...settings, chart: { ...chart, [key]: !chart[key] } });
+  }
+
   const cashRemaining = result.net - result.savingsContributions;
 
   return (
@@ -293,44 +337,87 @@ function OverviewView({
         {result.txCount}
       </p>
 
-      <div className="chart-card">
-        <h3 className="card-heading">Расходы по категориям</h3>
+      <Collapsible title="Расходы по категориям">
         {result.expenseByCategory.length ? (
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie
-                data={result.expenseByCategory}
-                dataKey="amount"
-                nameKey="name"
-                innerRadius={58}
-                outerRadius={96}
-                paddingAngle={2}
-              >
-                {result.expenseByCategory.map((c, i) => (
-                  <Cell key={i} fill={c.color} stroke={ct.panelStroke} strokeWidth={2} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(v: number) => formatEur(v)}
-                contentStyle={tooltipStyle}
-                labelStyle={{ color: ct.text }}
-                itemStyle={{ color: ct.text }}
-              />
-              <Legend wrapperStyle={{ color: ct.text, fontSize: 12 }} iconType="circle" />
-            </PieChart>
-          </ResponsiveContainer>
+          <>
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                <Pie
+                  data={result.expenseByCategory}
+                  dataKey="amount"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius="52%"
+                  outerRadius="86%"
+                  paddingAngle={2}
+                >
+                  {result.expenseByCategory.map((c, i) => (
+                    <Cell key={i} fill={c.color} stroke={ct.panelStroke} strokeWidth={2} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(v: number) => formatEur(v)}
+                  contentStyle={tooltipStyle}
+                  labelStyle={{ color: ct.text }}
+                  itemStyle={{ color: ct.text }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <ul className="chart-legend">
+              {result.expenseByCategory.map((c, i) => (
+                <li key={i}>
+                  <span className="dot" style={{ background: c.color }} />
+                  <span className="chart-legend-name">{c.name}</span>
+                </li>
+              ))}
+            </ul>
+          </>
         ) : (
           <p className="empty">Нет расходов в периоде.</p>
         )}
-      </div>
+      </Collapsible>
 
-      <div className="chart-card">
-        <h3 className="card-heading">Доходы и расходы по месяцам</h3>
+      <Collapsible
+        title="Доходы и расходы по месяцам"
+        actions={
+          <div className="chart-toggles">
+            {(
+              [
+                ['showIncome', 'Доход'],
+                ['showExpense', 'Расход'],
+                ['showNet', 'Сальдо'],
+                ['showCumulative', 'Накоплено'],
+              ] as [keyof ChartSettings, string][]
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`chart-toggle ${chart[key] ? 'active' : ''}`}
+                aria-pressed={chart[key]}
+                onClick={() => toggleSeries(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        }
+      >
         <ResponsiveContainer width="100%" height={260}>
-          <ComposedChart data={result.monthly} margin={{ top: 10, right: 8, left: -14, bottom: 0 }}>
+          <ComposedChart data={result.monthly} margin={{ top: 10, right: chart.showCumulative ? -10 : 8, left: -14, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={ct.grid} />
             <XAxis dataKey="month" tick={{ fill: ct.text, fontSize: 11 }} tickLine={false} axisLine={false} tickMargin={8} />
-            <YAxis tick={{ fill: ct.text, fontSize: 11 }} tickLine={false} axisLine={false} width={56} />
+            <YAxis yAxisId="main" tick={{ fill: ct.text, fontSize: 11 }} tickLine={false} axisLine={false} width={56} />
+            {chart.showCumulative && (
+              <YAxis
+                yAxisId="cum"
+                orientation="right"
+                tick={{ fill: ct.text, fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+                width={56}
+              />
+            )}
             <Tooltip
               formatter={(v: number) => formatEur(v)}
               contentStyle={tooltipStyle}
@@ -339,22 +426,40 @@ function OverviewView({
               cursor={{ fill: ct.cursor }}
             />
             <Legend wrapperStyle={{ color: ct.text, fontSize: 11, paddingTop: 8 }} iconType="circle" />
-            <Bar dataKey="income" name="Доход" fill="var(--green)" radius={[6, 6, 0, 0]} maxBarSize={26} />
-            <Bar dataKey="expense" name="Расход" fill="var(--red)" radius={[6, 6, 0, 0]} maxBarSize={26} />
-            <Line
-              dataKey="cumulativeNet"
-              name="Накоплено"
-              stroke="var(--accent)"
-              strokeWidth={2.5}
-              dot={false}
-              activeDot={{ r: 5 }}
-            />
+            {chart.showIncome && (
+              <Bar yAxisId="main" dataKey="income" name="Доход" fill="var(--green)" radius={[6, 6, 0, 0]} maxBarSize={26} />
+            )}
+            {chart.showExpense && (
+              <Bar yAxisId="main" dataKey="expense" name="Расход" fill="var(--red)" radius={[6, 6, 0, 0]} maxBarSize={26} />
+            )}
+            {chart.showNet && (
+              <Line
+                yAxisId="main"
+                dataKey="net"
+                name="Сальдо"
+                stroke="var(--text)"
+                strokeWidth={2}
+                strokeDasharray="5 4"
+                dot={false}
+                activeDot={{ r: 5 }}
+              />
+            )}
+            {chart.showCumulative && (
+              <Line
+                yAxisId="cum"
+                dataKey="cumulativeNet"
+                name="Накоплено"
+                stroke="var(--accent)"
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={{ r: 5 }}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
-      </div>
+      </Collapsible>
 
-      <div className="chart-card">
-        <h3 className="card-heading">Доход по категориям</h3>
+      <Collapsible title="Доход по категориям">
         {result.incomeByCategory.length ? (
           <ResponsiveContainer width="100%" height={Math.max(140, result.incomeByCategory.length * 38)}>
             <BarChart data={result.incomeByCategory} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
@@ -378,10 +483,9 @@ function OverviewView({
         ) : (
           <p className="empty">Нет доходов в периоде.</p>
         )}
-      </div>
+      </Collapsible>
 
-      <h2 className="section-title">Категории</h2>
-      <div className="card">
+      <Collapsible title="Категории">
         <p className="muted small" style={{ marginTop: 0 }}>
           Снимите галочку, чтобы исключить категорию из подсчётов. Иконкой глаза можно открыть
           операции категории.
@@ -422,7 +526,7 @@ function OverviewView({
             </div>
           );
         })}
-      </div>
+      </Collapsible>
     </>
   );
 }
@@ -563,13 +667,11 @@ function MoversCard({
   const max = Math.max(1, ...shown.map((d) => Math.max(d.current, d.previous)));
 
   return (
-    <>
-      <h2 className="section-title">{title}</h2>
-      <div className="card">
-        {shown.length === 0 ? (
-          <p className="empty">Изменений нет.</p>
-        ) : (
-          shown.map((d) => {
+    <Collapsible title={title}>
+      {shown.length === 0 ? (
+        <p className="empty">Изменений нет.</p>
+      ) : (
+        shown.map((d) => {
             const up = d.delta > 0;
             const good = increaseIsBad ? !up : up;
             return (
@@ -601,9 +703,8 @@ function MoversCard({
               </div>
             );
           })
-        )}
-      </div>
-    </>
+      )}
+    </Collapsible>
   );
 }
 
