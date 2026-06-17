@@ -1,7 +1,8 @@
 /* ============================================================
    Statement Analyzer — мобильный UI
-   Дизайн вдохновлён Revolut (тёмные карточки, яркий акцент,
-   мягкие скругления) и Apple (крупные числа, чистые секции).
+   Дизайн вдохновлён Swiss Design, Dieter Rams & Nothing OS.
+   Утилитарный моноширинный шрифт, жёсткая сетка (border = 0/2px),
+   строгий ч/б контраст с одним акцентным цветом (красный).
    Архитектура макета: приложение — это колонка фиксированной
    высоты (100dvh). Скроллится только внутренняя область .app-main,
    а сам документ — нет. Поэтому адресная строка браузера не
@@ -12,52 +13,54 @@
 :root,
 [data-theme='dark'] {
   color-scheme: dark;
-  --bg: #0a0b10;
-  --bg-soft: #101218;
-  --surface: #15171f;
-  --surface-2: #1c1f29;
-  --surface-3: #242834;
-  --border: #262a36;
-  --border-soft: #1e212b;
-  --text: #f4f6fb;
-  --muted: #8b93a7;
-  --faint: #5c6377;
-  --accent: #7c6cff;
-  --accent-2: #a06bff;
-  --accent-soft: rgba(124, 108, 255, 0.16);
+  --bg: #000000;
+  --bg-soft: #0a0a0a;
+  --surface: #000000;
+  --surface-2: #111111;
+  --surface-3: #222222;
+  --border: #333333;
+  --border-soft: #222222;
+  --text: #ffffff;
+  --muted: #888888;
+  --faint: #555555;
+  --accent: #ff0000;
+  --accent-2: #cc0000;
+  --accent-soft: rgba(255, 0, 0, 0.15);
   --accent-contrast: #ffffff;
-  --green: #2fd87a;
-  --red: #ff5a6a;
-  --blue: #4d9dff;
-  --orange: #ffae42;
-  --shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.8);
-  --shadow-soft: 0 8px 24px -16px rgba(0, 0, 0, 0.7);
-  --overlay: rgba(4, 6, 12, 0.66);
+  --green: #ffffff; /* Упрощаем до ч/б по возможности, но оставим семантику */
+  --red: #ff0000;
+  --blue: #ffffff;
+  --orange: #ff0000;
+  --shadow: none;
+  --shadow-soft: none;
+  --overlay: rgba(0, 0, 0, 0.85);
+  --radius: 2px;
 }
 
 [data-theme='light'] {
   color-scheme: light;
-  --bg: #f1f3f8;
+  --bg: #f4f4f4;
   --bg-soft: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f5f6fb;
-  --surface-3: #eceef5;
-  --border: #e4e7f0;
-  --border-soft: #edeff5;
-  --text: #11141c;
-  --muted: #6a7283;
-  --faint: #9aa1b2;
-  --accent: #6a5cf0;
-  --accent-2: #9163f5;
-  --accent-soft: rgba(106, 92, 240, 0.12);
+  --surface-2: #eeeeee;
+  --surface-3: #dddddd;
+  --border: #cccccc;
+  --border-soft: #dddddd;
+  --text: #000000;
+  --muted: #666666;
+  --faint: #999999;
+  --accent: #ff0000;
+  --accent-2: #cc0000;
+  --accent-soft: rgba(255, 0, 0, 0.1);
   --accent-contrast: #ffffff;
-  --green: #15b866;
-  --red: #e23950;
-  --blue: #2f7fe6;
-  --orange: #e08600;
-  --shadow: 0 18px 40px -24px rgba(40, 44, 70, 0.3);
-  --shadow-soft: 0 8px 24px -18px rgba(40, 44, 70, 0.25);
-  --overlay: rgba(18, 22, 34, 0.4);
+  --green: #000000;
+  --red: #ff0000;
+  --blue: #000000;
+  --orange: #ff0000;
+  --shadow: none;
+  --shadow-soft: none;
+  --overlay: rgba(255, 255, 255, 0.85);
+  --radius: 2px;
 }
 
 * {
@@ -75,10 +78,11 @@ body {
   margin: 0;
   overflow: hidden; /* документ не скроллится → адресная строка не дёргается */
   overscroll-behavior: none;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  text-transform: uppercase;
 }
 
 /* ── Скелет приложения ── */
@@ -95,8 +99,8 @@ body {
 
 @media (min-width: 560px) {
   .app {
-    border-left: 1px solid var(--border-soft);
-    border-right: 1px solid var(--border-soft);
+    border-left: 2px solid var(--border);
+    border-right: 2px solid var(--border);
   }
 }
 
@@ -107,25 +111,24 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding: max(14px, env(safe-area-inset-top)) 18px 12px;
-  background: color-mix(in srgb, var(--bg) 86%, transparent);
-  backdrop-filter: saturate(1.4) blur(14px);
-  border-bottom: 1px solid var(--border-soft);
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
   z-index: 4;
 }
 
 .app-title {
   margin: 0;
   font-size: 19px;
-  font-weight: 800;
-  letter-spacing: -0.4px;
+  font-weight: 700;
+  letter-spacing: -1px;
 }
 
 .app-subtitle {
   display: block;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--faint);
-  letter-spacing: 0.2px;
+  letter-spacing: 0.5px;
 }
 
 .app-main {
@@ -146,11 +149,10 @@ body {
 .tabbar {
   flex: none;
   display: flex;
-  gap: 2px;
+  gap: 0;
   padding: 8px 10px max(8px, env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: saturate(1.4) blur(16px);
-  border-top: 1px solid var(--border-soft);
+  background: var(--bg);
+  border-top: 2px solid var(--border);
   z-index: 6;
 }
 
@@ -160,16 +162,17 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 6px 2px;
+  padding: 8px 0;
   border: none;
   background: transparent;
   color: var(--faint);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.1px;
-  border-radius: 14px;
+  letter-spacing: 1px;
+  border-radius: var(--radius);
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
+  text-transform: uppercase;
 }
 
 .tab.active {
@@ -177,8 +180,8 @@ body {
 }
 
 .tab.active .tab-icon {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .tab-icon {
@@ -187,8 +190,13 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: var(--radius);
   transition: background 0.15s, color 0.15s;
+  border: 2px solid transparent;
+}
+
+.tab.active .tab-icon {
+  border-color: var(--accent);
 }
 
 .tab-icon svg {
@@ -216,31 +224,34 @@ body {
 /* ── Карточки/поверхности ── */
 .card {
   background: var(--surface);
-  border: 1px solid var(--border-soft);
-  border-radius: 22px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
   padding: 18px;
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .section-title {
   margin: 4px 2px 0;
   font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.3px;
+  letter-spacing: 1px;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .card-heading {
   margin: 0 0 14px;
   font-size: 15px;
   font-weight: 700;
+  letter-spacing: -0.5px;
 }
 
 /* ── Кнопки ── */
 button {
   font-family: inherit;
   cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .btn {
@@ -248,10 +259,10 @@ button {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   background: var(--surface-2);
   color: var(--text);
-  border-radius: 14px;
+  border-radius: var(--radius);
   padding: 11px 18px;
   font-size: 14px;
   font-weight: 700;
@@ -273,23 +284,28 @@ button {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  border: none;
+  background: var(--accent);
+  border: 2px solid var(--accent);
   color: var(--accent-contrast);
-  box-shadow: 0 12px 28px -14px var(--accent);
+  box-shadow: none;
+}
+
+.btn-primary:active {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
 }
 
 .btn-ghost {
   background: transparent;
-  border: none;
+  border: 2px solid transparent;
   color: var(--accent);
   padding: 8px 12px;
 }
 
 .btn-danger {
-  background: color-mix(in srgb, var(--red) 14%, transparent);
+  background: transparent;
   color: var(--red);
-  border: 1px solid color-mix(in srgb, var(--red) 32%, transparent);
+  border: 2px solid var(--red);
 }
 
 .btn-block {
@@ -300,7 +316,7 @@ button {
 .btn-lg {
   padding: 14px 22px;
   font-size: 15px;
-  border-radius: 16px;
+  border-radius: var(--radius);
 }
 
 .icon-btn {
@@ -309,8 +325,8 @@ button {
   justify-content: center;
   width: 38px;
   height: 38px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  border: 2px solid var(--border);
   background: var(--surface-2);
   color: var(--muted);
   flex: none;
@@ -334,11 +350,12 @@ textarea {
   font-family: inherit;
   font-size: 16px; /* >=16 предотвращает зум на iOS */
   padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
   background: var(--surface-2);
   color: var(--text);
   width: 100%;
+  text-transform: uppercase;
 }
 
 select {
@@ -388,11 +405,11 @@ input[type='checkbox'] {
 .segmented {
   display: inline-flex;
   width: 100%;
-  gap: 2px;
+  gap: 0;
   background: var(--surface-2);
-  border: 1px solid var(--border-soft);
-  border-radius: 14px;
-  padding: 4px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0;
 }
 
 .segmented button {
@@ -402,24 +419,29 @@ input[type='checkbox'] {
   justify-content: center;
   gap: 6px;
   border: none;
+  border-right: 2px solid var(--border);
   background: transparent;
   color: var(--muted);
   padding: 9px 8px;
-  border-radius: 11px;
+  border-radius: 0;
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
   transition: background 0.15s, color 0.15s;
 }
 
+.segmented button:last-child {
+  border-right: none;
+}
+
 .segmented button.active {
   background: var(--surface-3);
   color: var(--text);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .segmented.accent button.active {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  background: var(--accent);
   color: var(--accent-contrast);
 }
 
@@ -446,15 +468,16 @@ input[type='checkbox'] {
   align-items: center;
   gap: 7px;
   flex: none;
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   background: var(--surface-2);
   color: var(--text);
   padding: 8px 15px;
-  border-radius: 999px;
+  border-radius: var(--radius);
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
   transition: background 0.12s, border-color 0.12s, transform 0.06s;
+  text-transform: uppercase;
 }
 
 .chip:active {
@@ -462,15 +485,15 @@ input[type='checkbox'] {
 }
 
 .chip.active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
+  background: var(--surface-3);
+  border-color: var(--text);
+  color: var(--text);
 }
 
 .dot {
   width: 10px;
   height: 10px;
-  border-radius: 50%;
+  border-radius: 0;
   flex: none;
 }
 
@@ -483,8 +506,8 @@ input[type='checkbox'] {
 
 .stat-card {
   background: var(--surface);
-  border: 1px solid var(--border-soft);
-  border-radius: 18px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
   padding: 14px 15px;
   display: flex;
   flex-direction: column;
@@ -498,17 +521,18 @@ input[type='checkbox'] {
 
 .stat-label {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--muted);
   display: flex;
   align-items: center;
   gap: 6px;
+  letter-spacing: 1px;
 }
 
 .stat-value {
   font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
+  font-weight: 700;
+  letter-spacing: -1px;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -529,21 +553,21 @@ input[type='checkbox'] {
   align-items: center;
   gap: 3px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   padding: 3px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius);
 }
 .delta svg {
   width: 13px;
   height: 13px;
 }
 .delta.up {
-  color: var(--green);
-  background: color-mix(in srgb, var(--green) 16%, transparent);
+  color: var(--bg);
+  background: var(--text);
 }
 .delta.down {
-  color: var(--red);
-  background: color-mix(in srgb, var(--red) 16%, transparent);
+  color: var(--accent-contrast);
+  background: var(--accent);
 }
 .delta.flat {
   color: var(--muted);
@@ -554,10 +578,10 @@ input[type='checkbox'] {
 /* ── Графики ── */
 .chart-card {
   background: var(--surface);
-  border: 1px solid var(--border-soft);
-  border-radius: 22px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
   padding: 16px 12px 12px;
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .chart-card .card-heading {
@@ -565,7 +589,8 @@ input[type='checkbox'] {
 }
 
 .recharts-default-tooltip {
-  border-radius: 12px !important;
+  border-radius: var(--radius) !important;
+  font-family: inherit !important;
 }
 .recharts-wrapper *:focus,
 .recharts-sector:focus,
@@ -618,7 +643,7 @@ input[type='checkbox'] {
   flex-direction: column;
   gap: 7px;
   padding: 13px 4px;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 2px solid var(--border);
 }
 .mover-row:last-child {
   border-bottom: none;
@@ -634,7 +659,7 @@ input[type='checkbox'] {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: 700;
 }
 .mover-bars {
   display: flex;
@@ -662,14 +687,14 @@ input[type='checkbox'] {
 .mover-bar {
   flex: 1;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius);
   background: var(--surface-3);
   overflow: hidden;
 }
 .mover-bar > span {
   display: block;
   height: 100%;
-  border-radius: 999px;
+  border-radius: var(--radius);
 }
 
 /* ── Поиск/фильтры (Транзакции) ── */
@@ -678,8 +703,8 @@ input[type='checkbox'] {
   align-items: center;
   gap: 10px;
   background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
   padding: 0 12px;
 }
 .searchbar svg {
@@ -715,11 +740,11 @@ input[type='checkbox'] {
   min-width: 17px;
   height: 17px;
   padding: 0 4px;
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--accent);
   color: var(--accent-contrast);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -735,14 +760,14 @@ input[type='checkbox'] {
   align-items: center;
   gap: 12px;
   padding: 12px 4px;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 2px solid var(--border);
 }
 .txn-row:last-child {
   border-bottom: none;
 }
 .txn-row.selected {
-  background: var(--accent-soft);
-  border-radius: 12px;
+  background: var(--surface-3);
+  border-radius: var(--radius);
   border-bottom-color: transparent;
 }
 .txn-body {
@@ -759,7 +784,7 @@ input[type='checkbox'] {
   gap: 10px;
 }
 .txn-merchant {
-  font-weight: 600;
+  font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -786,7 +811,7 @@ input[type='checkbox'] {
 .txn-controls select {
   font-size: 13px;
   padding: 7px 28px 7px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   width: auto;
   max-width: 100%;
   background-color: var(--surface-2);
@@ -795,15 +820,16 @@ input[type='checkbox'] {
   display: inline-flex;
   align-items: center;
   padding: 2px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius);
   font-size: 11px;
   font-weight: 700;
   background: var(--surface-3);
   color: var(--muted);
+  border: 1px solid var(--border);
 }
 .tag.internal {
-  background: color-mix(in srgb, var(--blue) 18%, transparent);
-  color: var(--blue);
+  background: transparent;
+  color: var(--text);
 }
 
 /* Плавающая панель групповых действий */
@@ -816,17 +842,17 @@ input[type='checkbox'] {
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
-  border-radius: 18px;
+  border-radius: var(--radius);
   background: var(--surface-3);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
+  border: 2px solid var(--border);
+  box-shadow: none;
 }
 .bulk-bar select {
   flex: 1 1 140px;
   width: auto;
 }
 .bulk-count {
-  font-weight: 800;
+  font-weight: 700;
 }
 .similar-bar {
   display: flex;
@@ -834,9 +860,9 @@ input[type='checkbox'] {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  border-radius: 16px;
-  background: var(--accent-soft);
-  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  border-radius: var(--radius);
+  background: var(--surface-3);
+  border: 2px solid var(--border);
 }
 
 /* ── Нижний лист (фильтры/модалки) ── */
@@ -853,8 +879,8 @@ input[type='checkbox'] {
   width: 100%;
   max-width: 520px;
   background: var(--surface);
-  border-radius: 26px 26px 0 0;
-  border-top: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  border-top: 2px solid var(--border);
   padding: 8px 18px max(20px, env(safe-area-inset-bottom));
   max-height: 88vh;
   overflow-y: auto;
@@ -868,7 +894,7 @@ input[type='checkbox'] {
 .sheet-grip {
   width: 40px;
   height: 4px;
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--border);
   margin: 8px auto 14px;
 }
@@ -881,7 +907,7 @@ input[type='checkbox'] {
 .sheet-title {
   margin: 0;
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 700;
 }
 .sheet-section {
   display: flex;
@@ -897,7 +923,7 @@ input[type='checkbox'] {
   align-items: center;
   gap: 8px;
   border: 2px dashed var(--border);
-  border-radius: 22px;
+  border-radius: var(--radius);
   padding: 34px 20px;
   text-align: center;
   cursor: pointer;
@@ -915,12 +941,13 @@ input[type='checkbox'] {
 .dropzone-badge {
   width: 56px;
   height: 56px;
-  border-radius: 18px;
+  border-radius: var(--radius);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--surface-3);
+  color: var(--text);
+  border: 2px solid var(--border);
 }
 .dropzone-badge svg {
   width: 28px;
@@ -950,8 +977,8 @@ input[type='checkbox'] {
   gap: 10px;
   padding: 12px 14px;
   background: var(--surface-2);
-  border: 1px solid var(--border-soft);
-  border-radius: 14px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
 }
 .staged-name {
   overflow: hidden;
@@ -962,32 +989,37 @@ input[type='checkbox'] {
 
 .report {
   padding: 12px 14px;
-  border-radius: 14px;
+  border-radius: var(--radius);
   font-size: 14px;
+  border: 2px solid var(--border);
 }
 .report.ok {
-  background: color-mix(in srgb, var(--green) 14%, transparent);
+  background: var(--surface-3);
 }
 .report.duplicate {
-  background: color-mix(in srgb, var(--orange) 16%, transparent);
+  background: transparent;
+  color: var(--muted);
 }
 .report.error {
-  background: color-mix(in srgb, var(--red) 14%, transparent);
+  background: transparent;
+  border-color: var(--red);
+  color: var(--red);
 }
 
 .warn {
-  background: color-mix(in srgb, var(--orange) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--orange) 32%, transparent);
-  border-radius: 14px;
+  background: transparent;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
   padding: 12px 14px;
   font-size: 13px;
+  color: var(--muted);
 }
 
 /* ── Настройки (iOS-style группы) ── */
 .settings-group {
   background: var(--surface);
-  border: 1px solid var(--border-soft);
-  border-radius: 18px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
   overflow: hidden;
 }
 .settings-row {
@@ -995,7 +1027,7 @@ input[type='checkbox'] {
   align-items: center;
   gap: 12px;
   padding: 13px 16px;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 2px solid var(--border);
   min-height: 30px;
 }
 .settings-row:last-child {
@@ -1019,12 +1051,12 @@ input[type='checkbox'] {
 }
 
 .mapping-key {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: inherit;
   font-size: 12px;
   background: var(--surface-2);
-  border: 1px solid var(--border-soft);
+  border: 2px solid var(--border);
   padding: 3px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   word-break: break-all;
 }
 
@@ -1062,7 +1094,7 @@ input[type='checkbox'] {
   align-items: center;
   gap: 12px;
   padding: max(12px, env(safe-area-inset-top)) 16px 12px;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 2px solid var(--border);
 }
 .review-progress {
   flex: 1;
@@ -1070,14 +1102,14 @@ input[type='checkbox'] {
 .review-progress-bar {
   height: 6px;
   background: var(--surface-3);
-  border-radius: 999px;
+  border-radius: 0;
   overflow: hidden;
   margin-bottom: 5px;
 }
 .review-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  border-radius: 999px;
+  background: var(--accent);
+  border-radius: 0;
   transition: width 0.25s ease;
 }
 .review-body {
@@ -1094,21 +1126,22 @@ input[type='checkbox'] {
   color: var(--muted);
   font-size: 13px;
   margin-bottom: 8px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 1px;
 }
 .review-merchant {
   font-size: 24px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.2;
-  letter-spacing: -0.4px;
+  letter-spacing: -1px;
   margin-bottom: 6px;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
 .review-amount {
   font-size: 34px;
-  font-weight: 800;
-  letter-spacing: -0.6px;
+  font-weight: 700;
+  letter-spacing: -1.5px;
 }
 .review-amount.pos {
   color: var(--green);
@@ -1129,7 +1162,8 @@ input[type='checkbox'] {
 .review-pick-label {
   margin: 22px 0 12px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 1px;
 }
 .pill-search {
   margin-bottom: 14px;
@@ -1143,34 +1177,35 @@ input[type='checkbox'] {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  border: 1.5px solid var(--border);
+  border: 2px solid var(--border);
   background: var(--surface-2);
   color: var(--text);
-  border-radius: 999px;
+  border-radius: var(--radius);
   padding: 11px 16px;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   transition: border-color 0.12s, background 0.12s, transform 0.06s;
+  text-transform: uppercase;
 }
 .pill:active {
   transform: scale(0.96);
 }
 .pill.selected {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
 }
 .pill-new {
   border-style: dashed;
-  color: var(--accent);
-  border-color: var(--accent);
+  color: var(--text);
+  border-color: var(--text);
   background: transparent;
 }
 .cat-create-box {
   margin-top: 18px;
   padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
   background: var(--surface-2);
   display: flex;
   flex-direction: column;
@@ -1201,7 +1236,7 @@ input[type='checkbox'] {
   display: flex;
   gap: 10px;
   padding: 14px 16px max(14px, env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border-soft);
+  border-top: 2px solid var(--border);
 }
 .review-nav button {
   flex: 1;
@@ -1221,7 +1256,7 @@ input[type='checkbox'] {
   justify-content: space-between;
   gap: 12px;
   padding: 13px 0;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 2px solid var(--border);
   cursor: pointer;
 }
 .summary-list li:last-child {
