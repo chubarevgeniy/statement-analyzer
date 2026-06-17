@@ -400,7 +400,7 @@ function OverviewView({
                 <span className="dot" style={{ background: c.color }} />
                 <span className="cat-name">{c.name}</span>
               </label>
-              <span className="cat-amount">{formatEur(c.amount)}</span>
+              <span className={`cat-amount ${c.amount < 0 ? 'neg' : c.amount > 0 ? 'pos' : ''}`}>{formatEur(c.amount)}</span>
               <button
                 type="button"
                 className="icon-btn"

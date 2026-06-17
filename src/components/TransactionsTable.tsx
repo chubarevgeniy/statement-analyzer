@@ -89,6 +89,7 @@ export function TransactionsTable({
   }, [txns, query, ownerFilter, catFilter, bankFilter, dateFrom, dateTo]);
 
   const shown = rows.slice(0, 1000);
+  const rowsSum = useMemo(() => rows.reduce((acc, t) => acc + t.eurAmount, 0), [rows]);
   const selectedTxns = useMemo(() => txns.filter((t) => selected.has(t.id)), [txns, selected]);
 
   function toggleSelect(id: string) {
@@ -292,7 +293,7 @@ export function TransactionsTable({
       </div>
 
       <div className="toolbar" style={{ justifyContent: 'space-between' }}>
-        <span className="muted small">Найдено: {rows.length}</span>
+        <span className="muted small">Найдено: {rows.length} на сумму <span className={rowsSum < 0 ? 'neg' : rowsSum > 0 ? 'pos' : ''}>{formatEur(rowsSum)}</span></span>
         {selectMode ? (
           <div style={{ display: 'flex', gap: 12 }}>
             <button className="btn-ghost" onClick={selectAllShown}>

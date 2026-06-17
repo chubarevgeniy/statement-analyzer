@@ -54,7 +54,23 @@ describe('resolveCounterpartyOwners', () => {
     expect(m.get('b')).toBe('test person');
     expect(m.get('e')).toBeNull();
   });
+
+  it('adds net internal transfers to income or expense if not zero and not excluded', () => {
+    const withUnmatchedInternal = [
+      ...txns,
+      txn({ id: 'h', amount: 500, isTransfer: true, type: 'transfer', counterpartyIban: IBAN_TR }),
+    ];
+    const r = analyze(withUnmatchedInternal, accounts, BUILTIN_CATEGORIES, {
+      period: { start: '2026-01-01', end: '2026-01-31' },
+      selectedOwners: ['test person'],
+      excludedCategoryIds: ['savings'], // 'internal' is NOT excluded
+    });
+    // net internal: 500 (new) - 100 (a) + 100 (b) = 500. It should be added to income.
+    expect(r.income).toBeCloseTo(1000 + 500);
+    expect(r.expense).toBeCloseTo(500); // 200 card + 300 external transfer
+  });
 });
+
 
 describe('analyze', () => {
   it('исключает внутренние переводы, считает доход/расход', () => {
@@ -66,7 +82,7 @@ describe('analyze', () => {
     expect(r.income).toBeCloseTo(1000);
     expect(r.expense).toBeCloseTo(500); // 200 карта + 300 внешний перевод
     expect(r.net).toBeCloseTo(500);
-    expect(r.internalVolume).toBeCloseTo(200);
+    expect(r.internalVolume).toBeCloseTo(100);
   });
 
   it('учитывает вклад в накопления отдельно (trade -> savings)', () => {
@@ -101,5 +117,20 @@ describe('analyze', () => {
 
   it('dateRange возвращает границы', () => {
     expect(dateRange(txns)).toEqual({ start: '2026-01-15', end: '2026-01-15' });
+  });
+
+  it('adds net internal transfers to income or expense if not zero and not excluded', () => {
+    const withUnmatchedInternal = [
+      ...txns,
+      txn({ id: 'h', amount: 500, isTransfer: true, type: 'transfer', counterpartyIban: IBAN_TR }),
+    ];
+    const r = analyze(withUnmatchedInternal, accounts, BUILTIN_CATEGORIES, {
+      period: { start: '2026-01-01', end: '2026-01-31' },
+      selectedOwners: ['test person'],
+      excludedCategoryIds: ['savings'], // 'internal' is NOT excluded
+    });
+    // net internal: 500 (new) - 100 (a) + 100 (b) = 500. It should be added to income.
+    expect(r.income).toBeCloseTo(1000 + 500);
+    expect(r.expense).toBeCloseTo(500); // 200 card + 300 external transfer
   });
 });
