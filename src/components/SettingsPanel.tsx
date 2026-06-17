@@ -11,7 +11,7 @@ import { resetTransactionsDb } from '../db/transactionsDb';
 import { pingLlm } from '../services/llm';
 import { bankLabel, ownerLabel } from '../ui/format';
 import type { ThemeMode } from '../ui/theme';
-import { IconAuto, IconDownload, IconMoon, IconSun, IconUpload } from '../ui/icons';
+import { IconAuto, IconDownload, IconMoon, IconPlus, IconSun, IconTrash, IconUpload } from '../ui/icons';
 import { exportBackup, exportTransactionsCsv, importBackup } from '../services/backup';
 
 const THEME_OPTIONS: { id: ThemeMode; label: string; icon: (p: { className?: string }) => JSX.Element }[] = [
@@ -134,193 +134,184 @@ export function SettingsPanel({
   }
 
   return (
-    <div className="panel">
-      <h2>Настройки</h2>
-
-      <section>
-        <h3>Оформление</h3>
-        <p className="muted small">Тема</p>
-        <div className="segmented">
-          {THEME_OPTIONS.map((o) => {
-            const Icon = o.icon;
-            return (
-              <button
-                key={o.id}
-                type="button"
-                className={themeMode === o.id ? 'active' : ''}
-                onClick={() => onThemeModeChange(o.id)}
-              >
-                <Icon className="nav-icon" /> {o.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section>
-        <h3>Локальный ИИ (Ollama / OpenAI-совместимый)</h3>
-        <p className="muted small">
-          Укажите адрес локальной модели (напр. запущенной через Ollama). ИИ попробует сам
-          сопоставить операции с существующими категориями при импорте и групповыми действиями на
-          вкладке «Транзакции». Запросы идут только на указанный адрес — никаких внешних сервисов.
-        </p>
-        <div className="llm-form">
-          <label className="llm-field">
-            <span className="muted small">Адрес API (base URL)</span>
-            <input
-              placeholder="http://localhost:11434/v1"
-              value={llm.baseUrl}
-              onChange={(e) => setLlm({ ...llm, baseUrl: e.target.value })}
-              onBlur={() => void saveLlm(llm)}
-            />
-          </label>
-          <label className="llm-field">
-            <span className="muted small">Модель</span>
-            <input
-              placeholder="llama3.1"
-              value={llm.model}
-              onChange={(e) => setLlm({ ...llm, model: e.target.value })}
-              onBlur={() => void saveLlm(llm)}
-            />
-          </label>
-          <label className="check-row">
-            <input
-              type="checkbox"
-              checked={llm.enabled}
-              onChange={(e) => void saveLlm({ ...llm, enabled: e.target.checked })}
-            />
-            Включить ИИ-категоризацию
-          </label>
-          <div className="backup-actions">
-            <button type="button" onClick={testLlm} disabled={llmBusy}>
-              {llmBusy ? 'Проверка…' : 'Проверить соединение'}
+    <div className="screen">
+      <h2 className="section-title">Оформление</h2>
+      <div className="segmented">
+        {THEME_OPTIONS.map((o) => {
+          const Icon = o.icon;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              className={themeMode === o.id ? 'active' : ''}
+              onClick={() => onThemeModeChange(o.id)}
+            >
+              <Icon /> {o.label}
             </button>
-          </div>
-          {llmMsg && <p className="muted small">{llmMsg}</p>}
-        </div>
-      </section>
+          );
+        })}
+      </div>
 
-      <section>
-        <h3>Категории</h3>
-        <ul className="settings-list">
-          {categories.map((c) => (
-            <li key={c.id}>
-              <span style={{ color: c.color }}>●</span> {c.name}{' '}
-              <span className="muted small">({c.kind})</span>
-              {c.builtin ? (
-                <span className="muted small"> · встроенная</span>
-              ) : (
-                <button
-                  className="link"
-                  onClick={async () => {
-                    await deleteCategory(c.id);
-                    await onChange();
-                  }}
-                >
-                  удалить
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-        <div className="inline-add">
+      <h2 className="section-title">Локальный ИИ</h2>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <p className="muted small" style={{ margin: 0 }}>
+          Адрес OpenAI-совместимой модели (напр. через Ollama). ИИ сопоставляет операции с
+          категориями при импорте и в групповых действиях. Запросы идут только на указанный адрес.
+        </p>
+        <div className="field">
+          <span className="field-label">Адрес API (base URL)</span>
           <input
-            placeholder="Новая категория"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addCategory()}
+            placeholder="http://localhost:11434/v1"
+            value={llm.baseUrl}
+            onChange={(e) => setLlm({ ...llm, baseUrl: e.target.value })}
+            onBlur={() => void saveLlm(llm)}
           />
-          <button onClick={addCategory}>Добавить</button>
         </div>
-      </section>
+        <div className="field">
+          <span className="field-label">Модель</span>
+          <input
+            placeholder="llama3.1"
+            value={llm.model}
+            onChange={(e) => setLlm({ ...llm, model: e.target.value })}
+            onBlur={() => void saveLlm(llm)}
+          />
+        </div>
+        <label className="check-row">
+          <input
+            type="checkbox"
+            checked={llm.enabled}
+            onChange={(e) => void saveLlm({ ...llm, enabled: e.target.checked })}
+          />
+          Включить ИИ-категоризацию
+        </label>
+        <button type="button" className="btn" onClick={testLlm} disabled={llmBusy}>
+          {llmBusy ? 'Проверка…' : 'Проверить соединение'}
+        </button>
+        {llmMsg && <p className="muted small" style={{ margin: 0 }}>{llmMsg}</p>}
+      </div>
 
-      <section>
-        <h3>Маппинги операций → категории ({mappings.length})</h3>
-        <ul className="settings-list mapping-list">
-          {mappings.map((m) => (
-            <li key={m.key} className="mapping-item">
-              <span className="mapping-key">{m.key}</span>
-              <span className="mapping-arrow">→</span>
-              <span className="mapping-cat">{catName(m.categoryId)}</span>
+      <h2 className="section-title">Категории</h2>
+      <div className="settings-group">
+        {categories.map((c) => (
+          <div key={c.id} className="settings-row">
+            <span className="dot" style={{ background: c.color }} />
+            <span className="grow">
+              {c.name} <span className="muted small">· {c.kind}</span>
+            </span>
+            {c.builtin ? (
+              <span className="muted small">встроенная</span>
+            ) : (
               <button
-                className="link mapping-delete"
+                className="icon-btn"
+                aria-label="Удалить категорию"
                 onClick={async () => {
-                  await deleteMapping(m.key);
+                  await deleteCategory(c.id);
                   await onChange();
                 }}
               >
-                удалить
+                <IconTrash />
               </button>
-            </li>
-          ))}
-          {mappings.length === 0 && <li className="muted">Пока нет сохранённых маппингов.</li>}
-        </ul>
-      </section>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="inline-add">
+        <input
+          placeholder="Новая категория"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && addCategory()}
+        />
+        <button className="btn btn-primary" onClick={addCategory}>
+          <IconPlus /> Добавить
+        </button>
+      </div>
 
-      <section>
-        <h3>Распознанные счета</h3>
-        <ul className="settings-list">
-          {accounts.map((a) => (
-            <li key={a.iban}>
-              {bankLabel(a.bank)} · {ownerLabel(a.owner)} · <code>{a.iban}</code>
-            </li>
-          ))}
-          {accounts.length === 0 && <li className="muted">Нет счетов.</li>}
-        </ul>
-      </section>
+      <h2 className="section-title">Маппинги операций → категории ({mappings.length})</h2>
+      <div className="settings-group">
+        {mappings.map((m) => (
+          <div key={m.key} className="settings-row">
+            <span className="mapping-key grow">{m.key}</span>
+            <span className="muted small">{catName(m.categoryId)}</span>
+            <button
+              className="icon-btn"
+              aria-label="Удалить маппинг"
+              onClick={async () => {
+                await deleteMapping(m.key);
+                await onChange();
+              }}
+            >
+              <IconTrash />
+            </button>
+          </div>
+        ))}
+        {mappings.length === 0 && <div className="settings-row muted">Пока нет сохранённых маппингов.</div>}
+      </div>
 
-      <section>
-        <h3>Импортированные выписки</h3>
-        <ul className="settings-list">
-          {statements.map((s) => (
-            <li key={s.id}>
-              {bankLabel(s.bank)} · {s.fileName} · {s.txnCount} операций
-            </li>
-          ))}
-          {statements.length === 0 && <li className="muted">Нет импортов.</li>}
-        </ul>
-      </section>
+      <h2 className="section-title">Распознанные счета</h2>
+      <div className="settings-group">
+        {accounts.map((a) => (
+          <div key={a.iban} className="settings-row column">
+            <span className="grow">
+              {bankLabel(a.bank)} · {ownerLabel(a.owner)}
+            </span>
+            <code>{a.iban}</code>
+          </div>
+        ))}
+        {accounts.length === 0 && <div className="settings-row muted">Нет счетов.</div>}
+      </div>
 
-      <section>
-        <h3>Резервная копия данных</h3>
-        <p className="muted small">
-          Полная копия (JSON) сохраняет все транзакции, счета, выписки, категории, маппинги и
-          настройки. Её можно импортировать обратно позже или перенести на другое устройство —
-          импорт полностью заменит текущие данные.
-        </p>
-        <div className="backup-actions">
-          <button type="button" onClick={handleExport} disabled={backupBusy}>
-            <IconDownload className="nav-icon" /> Экспорт (JSON)
-          </button>
-          <label className="btn-file">
-            <IconUpload className="nav-icon" /> Импорт (JSON)
-            <input
-              type="file"
-              accept="application/json,.json"
-              onChange={handleImport}
-              disabled={backupBusy}
-            />
-          </label>
-          <button type="button" onClick={handleExportCsv} disabled={backupBusy}>
-            <IconDownload className="nav-icon" /> Транзакции в CSV
-          </button>
-        </div>
-        <p className="muted small" style={{ marginTop: '10px' }}>
-          CSV удобен для просмотра в Excel или Google Таблицах, но не предназначен для обратного
-          импорта — для переноса данных используйте JSON.
-        </p>
-      </section>
+      <h2 className="section-title">Импортированные выписки</h2>
+      <div className="settings-group">
+        {statements.map((s) => (
+          <div key={s.id} className="settings-row">
+            <span className="grow">
+              {bankLabel(s.bank)} · {s.fileName}
+            </span>
+            <span className="muted small">{s.txnCount} оп.</span>
+          </div>
+        ))}
+        {statements.length === 0 && <div className="settings-row muted">Нет импортов.</div>}
+      </div>
 
-      <section className="danger">
-        <h3>Сброс баз данных</h3>
-        <p className="muted small">Каждая база сбрасывается отдельно.</p>
-        <button className="btn-danger" onClick={() => confirmReset('tx')}>
+      <h2 className="section-title">Резервная копия данных</h2>
+      <p className="muted small" style={{ margin: 0 }}>
+        Полная копия (JSON) сохраняет все данные и может быть импортирована обратно — импорт
+        полностью заменит текущие данные. CSV удобен для Excel, но не для обратного импорта.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <button type="button" className="btn btn-block" onClick={handleExport} disabled={backupBusy}>
+          <IconDownload /> Экспорт (JSON)
+        </button>
+        <label className="btn btn-block">
+          <IconUpload /> Импорт (JSON)
+          <input
+            type="file"
+            accept="application/json,.json"
+            onChange={handleImport}
+            disabled={backupBusy}
+            style={{ display: 'none' }}
+          />
+        </label>
+        <button type="button" className="btn btn-block" onClick={handleExportCsv} disabled={backupBusy}>
+          <IconDownload /> Транзакции в CSV
+        </button>
+      </div>
+
+      <h2 className="section-title">Сброс баз данных</h2>
+      <p className="muted small" style={{ margin: 0 }}>Каждая база сбрасывается отдельно.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <button className="btn btn-danger btn-block" onClick={() => confirmReset('tx')}>
           Сбросить БД транзакций
         </button>
-        <button className="btn-danger" onClick={() => confirmReset('cat')}>
+        <button className="btn btn-danger btn-block" onClick={() => confirmReset('cat')}>
           Сбросить БД категорий
         </button>
-      </section>
+      </div>
+
+      <p className="muted small" style={{ textAlign: 'center', marginTop: 8 }}>
+        Все данные хранятся локально в браузере (IndexedDB). Ничего не отправляется на сервер.
+      </p>
     </div>
   );
 }

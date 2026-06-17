@@ -91,6 +91,89 @@ export function IconEye({ className }: IconProps) {
   );
 }
 
+export function IconCompare({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M5 17V8M5 8l-2.5 2.8M5 8l2.5 2.8" />
+      <path d="M19 7v9M19 16l-2.5-2.8M19 16l2.5-2.8" />
+    </svg>
+  );
+}
+
+export function IconSearch({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+}
+
+export function IconFilter({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3.5 5.5h17M6.5 12h11M10 18.5h4" />
+    </svg>
+  );
+}
+
+export function IconClose({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M6 6l12 12M18 6 6 18" />
+    </svg>
+  );
+}
+
+export function IconChevronRight({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M9 5l7 7-7 7" />
+    </svg>
+  );
+}
+
+export function IconArrowUpRight({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M7 17 17 7M8 7h9v9" />
+    </svg>
+  );
+}
+
+export function IconArrowDownRight({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M7 7 17 17M17 8v9H8" />
+    </svg>
+  );
+}
+
+export function IconPlus({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+export function IconTrash({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+    </svg>
+  );
+}
+
+export function IconSparkles({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 4l1.6 4.4L18 10l-4.4 1.6L12 16l-1.6-4.4L6 10l4.4-1.6L12 4Z" />
+      <path d="M18 15l.7 1.8L20.5 17.5 18.7 18.2 18 20l-.7-1.8L15.5 17.5l1.8-.7L18 15Z" />
+    </svg>
+  );
+}
+
 export function IconDownload({ className }: IconProps) {
   return (
     <svg {...base} className={className}>

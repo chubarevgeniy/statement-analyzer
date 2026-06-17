@@ -66,6 +66,127 @@ export function ownersList(accounts: Account[]): string[] {
   return allOwners(accounts);
 }
 
+// ── Готовые периоды для сравнений ──
+
+export function monthPeriod(ym: string): Period {
+  const [y, m] = ym.split('-').map(Number);
+  const last = new Date(y, m, 0).getDate();
+  return { start: `${ym}-01`, end: `${ym}-${String(last).padStart(2, '0')}` };
+}
+
+export function yearPeriod(y: number): Period {
+  return { start: `${y}-01-01`, end: `${y}-12-31` };
+}
+
+export function prevMonth(ym: string): string {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 2, 1); // m-1 текущий (0-based) → m-2 предыдущий
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** Список месяцев (YYYY-MM) от самого свежего к старому, покрывающих данные. */
+export function monthsList(range: Period): string[] {
+  const out: string[] = [];
+  let [y, m] = range.end.slice(0, 7).split('-').map(Number);
+  const [sy, sm] = range.start.slice(0, 7).split('-').map(Number);
+  while (y > sy || (y === sy && m >= sm)) {
+    out.push(`${y}-${String(m).padStart(2, '0')}`);
+    m--;
+    if (m === 0) {
+      m = 12;
+      y--;
+    }
+  }
+  return out.length ? out : [range.end.slice(0, 7)];
+}
+
+export interface CategoryDelta {
+  categoryId: string | null;
+  name: string;
+  color: string;
+  current: number;
+  previous: number;
+  delta: number;
+  /** Относительное изменение (доля), null если в прошлом периоде было 0. */
+  pct: number | null;
+}
+
+export interface ComparisonResult {
+  current: AnalyticsResult;
+  previous: AnalyticsResult;
+  /** Метки периодов для подписи. */
+  currentLabel: string;
+  previousLabel: string;
+  incomeDelta: number;
+  expenseDelta: number;
+  netDelta: number;
+  savingsDelta: number;
+  /** Категории расходов, отсортированные по модулю изменения (крупнейшие движения вперёд). */
+  expenseDeltas: CategoryDelta[];
+  incomeDeltas: CategoryDelta[];
+}
+
+function joinDeltas(current: CategoryTotal[], previous: CategoryTotal[]): CategoryDelta[] {
+  const prevById = new Map(previous.map((c) => [c.categoryId ?? UNCATEGORIZED, c]));
+  const curById = new Map(current.map((c) => [c.categoryId ?? UNCATEGORIZED, c]));
+  const keys = new Set([...prevById.keys(), ...curById.keys()]);
+  const out: CategoryDelta[] = [];
+  for (const key of keys) {
+    const c = curById.get(key);
+    const p = prevById.get(key);
+    const meta = c ?? p!;
+    const cur = c?.amount ?? 0;
+    const prev = p?.amount ?? 0;
+    out.push({
+      categoryId: meta.categoryId,
+      name: meta.name,
+      color: meta.color,
+      current: cur,
+      previous: prev,
+      delta: cur - prev,
+      pct: prev === 0 ? null : (cur - prev) / prev,
+    });
+  }
+  return out.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+}
+
+/**
+ * Сравнивает два периода (например, текущий месяц с предыдущим или год к году).
+ * Возвращает агрегаты обоих периодов и разбивку изменений по категориям.
+ */
+export function compare(
+  txns: StoredTxn[],
+  accounts: Account[],
+  categories: Category[],
+  opts: {
+    current: Period;
+    previous: Period;
+    currentLabel: string;
+    previousLabel: string;
+    selectedOwners: string[];
+    excludedCategoryIds: string[];
+  },
+): ComparisonResult {
+  const common = {
+    selectedOwners: opts.selectedOwners,
+    excludedCategoryIds: opts.excludedCategoryIds,
+  };
+  const current = analyze(txns, accounts, categories, { period: opts.current, ...common });
+  const previous = analyze(txns, accounts, categories, { period: opts.previous, ...common });
+  return {
+    current,
+    previous,
+    currentLabel: opts.currentLabel,
+    previousLabel: opts.previousLabel,
+    incomeDelta: current.income - previous.income,
+    expenseDelta: current.expense - previous.expense,
+    netDelta: current.net - previous.net,
+    savingsDelta: current.savingsContributions - previous.savingsContributions,
+    expenseDeltas: joinDeltas(current.expenseByCategory, previous.expenseByCategory),
+    incomeDeltas: joinDeltas(current.incomeByCategory, previous.incomeByCategory),
+  };
+}
+
 export function analyze(
   txns: StoredTxn[],
   accounts: Account[],
