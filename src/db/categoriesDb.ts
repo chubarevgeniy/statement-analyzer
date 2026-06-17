@@ -18,10 +18,18 @@ export const BUILTIN_CATEGORIES: Category[] = [
   { id: 'fee', name: 'Комиссии', kind: 'expense', excludedByDefault: false, color: '#c62828', builtin: true },
 ];
 
+export const DEFAULT_CHART_SETTINGS = {
+  showIncome: true,
+  showExpense: true,
+  showNet: false,
+  showCumulative: true,
+} as const;
+
 const DEFAULT_SETTINGS: Settings = {
   key: 'app',
   excludedCategoryIds: ['internal', 'savings'],
   selectedOwners: [],
+  chart: { ...DEFAULT_CHART_SETTINGS },
 };
 
 let dbPromise: Promise<IDBPDatabase<unknown>> | null = null;

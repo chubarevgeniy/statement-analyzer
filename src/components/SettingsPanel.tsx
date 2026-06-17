@@ -191,28 +191,13 @@ export function SettingsPanel({
       </div>
 
       <h2 className="section-title">Категории</h2>
+      <p className="muted small" style={{ margin: 0 }}>
+        Нажмите на цветной квадрат, чтобы изменить цвет категории на графиках. Названия своих
+        категорий можно отредактировать.
+      </p>
       <div className="settings-group">
         {categories.map((c) => (
-          <div key={c.id} className="settings-row">
-            <span className="dot" style={{ background: c.color }} />
-            <span className="grow">
-              {c.name} <span className="muted small">· {c.kind}</span>
-            </span>
-            {c.builtin ? (
-              <span className="muted small">встроенная</span>
-            ) : (
-              <button
-                className="icon-btn"
-                aria-label="Удалить категорию"
-                onClick={async () => {
-                  await deleteCategory(c.id);
-                  await onChange();
-                }}
-              >
-                <IconTrash />
-              </button>
-            )}
-          </div>
+          <CategoryRow key={c.id} category={c} onChange={onChange} />
         ))}
       </div>
       <div className="inline-add">
@@ -312,6 +297,69 @@ export function SettingsPanel({
       <p className="muted small" style={{ textAlign: 'center', marginTop: 8 }}>
         Все данные хранятся локально в браузере (IndexedDB). Ничего не отправляется на сервер.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Строка категории в настройках: цвет (для всех) и название (для пользовательских)
+ * можно редактировать. Изменения сохраняются мгновенно.
+ */
+function CategoryRow({ category, onChange }: { category: Category; onChange: () => Promise<void> }) {
+  const [name, setName] = useState(category.name);
+
+  async function save(patch: Partial<Category>) {
+    await putCategory({ ...category, ...patch });
+    await onChange();
+  }
+
+  async function commitName() {
+    const next = name.trim();
+    if (!next || next === category.name) {
+      setName(category.name);
+      return;
+    }
+    await save({ name: next });
+  }
+
+  return (
+    <div className="settings-row">
+      <label className="color-swatch" title="Изменить цвет" style={{ background: category.color }}>
+        <input
+          type="color"
+          value={category.color}
+          onChange={(e) => void save({ color: e.target.value })}
+          aria-label={`Цвет категории ${category.name}`}
+        />
+      </label>
+      {category.builtin ? (
+        <span className="grow">
+          {category.name} <span className="muted small">· {category.kind}</span>
+        </span>
+      ) : (
+        <input
+          className="cat-name-input grow"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => void commitName()}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          aria-label="Название категории"
+        />
+      )}
+      {category.builtin ? (
+        <span className="muted small">встроенная</span>
+      ) : (
+        <button
+          className="icon-btn"
+          aria-label="Удалить категорию"
+          onClick={async () => {
+            await deleteCategory(category.id);
+            await onChange();
+          }}
+        >
+          <IconTrash />
+        </button>
+      )}
     </div>
   );
 }
