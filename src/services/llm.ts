@@ -5,6 +5,11 @@ import type { Category, LlmConfig } from '../types';
 // указанный пользователем адрес инференса, никаких внешних сервисов.
 
 /** Одна операция, которую нужно классифицировать. */
+export interface ExampleTxn {
+  description: string;
+  amount: number;
+}
+
 export interface LlmItem {
   /** Ключ категоризации (как в маппингах) — по нему вернётся результат. */
   key: string;
@@ -60,6 +65,72 @@ function buildPrompt(items: LlmItem[], categories: Category[]): string {
     `Ответь СТРОГО валидным JSON-массивом без пояснений, по одному объекту на операцию: ` +
     `[{"key": "<key операции>", "categoryId": "<id категории или null>"}].`
   );
+}
+
+export function computeSelectedExamples(examples: ExampleTxn[], newChoices: ExampleTxn[]): string[] {
+  const combined = [...examples, ...newChoices];
+  if (combined.length === 0) return [];
+
+  // Deduplicate by description
+  const uniqueMap = new Map<string, ExampleTxn>();
+  for (const ex of combined) {
+    if (!uniqueMap.has(ex.description)) {
+      uniqueMap.set(ex.description, ex);
+    }
+  }
+  const unique = Array.from(uniqueMap.values());
+  if (unique.length <= 7) {
+    return unique.map(ex => `${ex.description} (${ex.amount})`);
+  }
+
+  unique.sort((a, b) => a.amount - b.amount);
+
+  const min = unique[0];
+  const max = unique[unique.length - 1];
+
+  const totalAmount = unique.reduce((sum, ex) => sum + ex.amount, 0);
+  const average = totalAmount / unique.length;
+  const median = unique[Math.floor(unique.length / 2)].amount;
+
+  let closestToAvg = unique[0];
+  let avgDiff = Math.abs(unique[0].amount - average);
+  for (const ex of unique) {
+    const diff = Math.abs(ex.amount - average);
+    if (diff < avgDiff) {
+      closestToAvg = ex;
+      avgDiff = diff;
+    }
+  }
+
+  let closestToMedian = unique[0];
+  let medianDiff = Math.abs(unique[0].amount - median);
+  for (const ex of unique) {
+    const diff = Math.abs(ex.amount - median);
+    if (diff < medianDiff) {
+      closestToMedian = ex;
+      medianDiff = diff;
+    }
+  }
+
+  const selected = new Set<ExampleTxn>();
+  selected.add(min);
+  selected.add(max);
+  selected.add(closestToAvg);
+  selected.add(closestToMedian);
+
+  const remaining = unique.filter(ex => !selected.has(ex));
+
+  // Shuffle remaining
+  for (let i = remaining.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+  }
+
+  for (let i = 0; i < remaining.length && selected.size < 7; i++) {
+    selected.add(remaining[i]);
+  }
+
+  return Array.from(selected).map(ex => `${ex.description} (${ex.amount})`);
 }
 
 function buildSingleItemPrompt(item: LlmItem, categories: Category[], examples: Record<string, string[]>): string {

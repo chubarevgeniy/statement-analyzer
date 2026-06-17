@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import type { Category, CategoryKind, LlmConfig } from '../types';
 import type { UnknownKey } from '../services/import';
-import { suggestSingleCategoryLlm } from '../services/llm';
+import { suggestSingleCategoryLlm, computeSelectedExamples, type ExampleTxn } from '../services/llm';
 import { bankLabel, formatDate, formatEur } from '../ui/format';
 import { IconClose, IconSparkles } from '../ui/icons';
 
@@ -46,7 +46,7 @@ export function ImportReview({
   busy: boolean;
   /** Конфиг локального ИИ (если включён) — показывает кнопку авто-распознавания. */
   llmConfig?: LlmConfig | null;
-  examples?: Record<string, string[]>;
+  examples?: Record<string, ExampleTxn[]>;
   onSetRate: (index: number, rate: number | '') => void;
   onSetCategory: (key: string, categoryId: string) => void;
   /** Массовая установка выборов (для ИИ-распознавания). */
@@ -106,11 +106,14 @@ export function ImportReview({
           />
         ) : (
           <CategoryStep
+            key={unknownKeys[step - fxNeeds.length].key}
             item={unknownKeys[step - fxNeeds.length]}
             categories={categories}
             selectedId={choices[unknownKeys[step - fxNeeds.length].key] ?? null}
             llmConfig={llmConfig}
             examples={examples}
+            choices={choices}
+            unknownKeys={unknownKeys}
             onPick={(id) => {
               onSetCategory(unknownKeys[step - fxNeeds.length].key, id);
               next();
@@ -169,6 +172,8 @@ function CategoryStep({
   selectedId,
   llmConfig,
   examples,
+  choices,
+  unknownKeys,
   onPick,
   onCreateCategory,
 }: {
@@ -176,7 +181,9 @@ function CategoryStep({
   categories: Category[];
   selectedId: string | null;
   llmConfig?: LlmConfig | null;
-  examples?: Record<string, string[]>;
+  examples?: Record<string, ExampleTxn[]>;
+  choices: Record<string, string>;
+  unknownKeys: UnknownKey[];
   onPick: (id: string) => void;
   onCreateCategory: (data: { name: string; kind: CategoryKind; color: string }) => Promise<Category>;
 }) {
@@ -189,13 +196,30 @@ function CategoryStep({
   const [aiResult, setAiResult] = useState<string | null | undefined>(undefined);
   const [aiLoading, setAiLoading] = useState(false);
 
+  const selectedExamples = useMemo(() => {
+    const result: Record<string, string[]> = {};
+    if (!categories) return result;
+
+    for (const cat of categories) {
+      const hist = examples?.[cat.id] || [];
+      const newChoices: ExampleTxn[] = [];
+      for (const u of unknownKeys) {
+        if (choices[u.key] === cat.id) {
+          newChoices.push({ description: u.sampleDescription, amount: u.sampleAmount });
+        }
+      }
+      result[cat.id] = computeSelectedExamples(hist, newChoices);
+    }
+    return result;
+  }, [categories, examples, choices, unknownKeys]);
+
   useEffect(() => {
     if (!llmConfig || aiResult !== undefined || aiLoading) return;
     setAiLoading(true);
     suggestSingleCategoryLlm(
       { key: item.key, description: item.sampleDescription, amount: item.sampleAmount, currency: item.sampleCurrency },
       categories,
-      examples || {},
+      selectedExamples,
       llmConfig
     )
       .then((res) => {
