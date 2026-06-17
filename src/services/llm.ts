@@ -181,6 +181,7 @@ export async function suggestSingleCategoryLlm(
   categories: Category[],
   examples: Record<string, string[]>,
   config: LlmConfig,
+  signal?: AbortSignal,
 ): Promise<string | null> {
   const base = normalizeBaseUrl(config.baseUrl);
   if (!base || !config.model) throw new Error('Не настроен адрес или модель ИИ');
@@ -190,6 +191,7 @@ export async function suggestSingleCategoryLlm(
   const res = await fetch(`${base}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal,
     body: JSON.stringify({
       model: config.model,
       temperature: 0,
