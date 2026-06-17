@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
-import type { Category, CategoryKind, LlmConfig } from '../types';
+import { useMemo, useRef, useState } from 'react';
+import type { Category, CategoryKind, LlmConfig, Mapping } from '../types';
 import type { UnknownKey } from '../services/import';
-import { suggestCategoriesLlm, type LlmItem } from '../services/llm';
+import { buildCategoryExamples, suggestCategoryForItem } from '../services/llm';
 import { bankLabel, formatDate, formatEur } from '../ui/format';
 import { IconClose, IconSparkles } from '../ui/icons';
 
@@ -31,9 +31,9 @@ export function ImportReview({
   choices,
   busy,
   llmConfig,
+  mappings,
   onSetRate,
   onSetCategory,
-  onSetChoices,
   onCreateCategory,
   onCancel,
   onConfirm,
@@ -44,12 +44,12 @@ export function ImportReview({
   /** key операции → id выбранной категории. */
   choices: Record<string, string>;
   busy: boolean;
-  /** Конфиг локального ИИ (если включён) — показывает кнопку авто-распознавания. */
+  /** Конфиг локального ИИ (если включён) — показывает кнопку авто-подсказки. */
   llmConfig?: LlmConfig | null;
+  /** Сохранённые маппинги — источник примеров «уже отнесённых» операций для ИИ. */
+  mappings?: Mapping[];
   onSetRate: (index: number, rate: number | '') => void;
   onSetCategory: (key: string, categoryId: string) => void;
-  /** Массовая установка выборов (для ИИ-распознавания). */
-  onSetChoices?: (next: Record<string, string>) => void;
   /** Создаёт и сразу сохраняет категорию, возвращает её. */
   onCreateCategory: (data: { name: string; kind: CategoryKind; color: string }) => Promise<Category>;
   onCancel: () => void;
@@ -58,29 +58,53 @@ export function ImportReview({
   // Шаги: сначала курсы, затем категории, последний шаг — подтверждение.
   const totalSteps = fxNeeds.length + unknownKeys.length;
   const [step, setStep] = useState(0);
-  const [aiBusy, setAiBusy] = useState(false);
+  const [aiRunning, setAiRunning] = useState(false);
+  const [aiStarted, setAiStarted] = useState(false);
+  // key операции → подобранная ИИ категория (id) либо null (подходящей нет).
+  const [aiResults, setAiResults] = useState<Record<string, string | null>>({});
   const [aiMsg, setAiMsg] = useState<string | null>(null);
+  const aiRunRef = useRef(false);
 
+  // Примеры уже отнесённых операций по категориям — отдаём их ИИ для контекста.
+  const examplesByCategory = useMemo(() => {
+    const pairs = (mappings ?? []).map((m) => ({ categoryId: m.categoryId, text: m.key }));
+    // Добавляем выборы, сделанные прямо в этой сессии (свежий контекст для ИИ).
+    for (const u of unknownKeys) {
+      const id = choices[u.key];
+      if (id) pairs.push({ categoryId: id, text: u.sampleDescription });
+    }
+    return buildCategoryExamples(pairs);
+  }, [mappings, unknownKeys, choices]);
+
+  // Последовательно (по одной операции за раз) просим ИИ подобрать категорию.
+  // Категорию не выставляем — лишь подсказываем её в UI, поднимая «плашку» наверх.
   async function runAi() {
-    if (!llmConfig || !onSetChoices || unknownKeys.length === 0) return;
-    setAiBusy(true);
+    if (!llmConfig || unknownKeys.length === 0 || aiRunRef.current) return;
+    aiRunRef.current = true;
+    setAiRunning(true);
+    setAiStarted(true);
     setAiMsg(null);
+    let found = 0;
     try {
-      const items: LlmItem[] = unknownKeys.map((u) => ({
-        key: u.key,
-        description: u.sampleDescription,
-        amount: u.sampleAmount,
-        currency: u.sampleCurrency,
-      }));
-      const suggestions = await suggestCategoriesLlm(items, categories, llmConfig);
-      const next: Record<string, string> = {};
-      for (const [key, id] of suggestions) next[key] = id;
-      onSetChoices(next);
-      setAiMsg(`ИИ распознал ${suggestions.size} из ${unknownKeys.length}`);
-    } catch (e) {
-      setAiMsg('Ошибка ИИ: ' + (e instanceof Error ? e.message : String(e)));
+      for (const u of unknownKeys) {
+        let id: string | null = null;
+        try {
+          id = await suggestCategoryForItem(
+            { key: u.key, description: u.sampleDescription, amount: u.sampleAmount, currency: u.sampleCurrency },
+            categories,
+            examplesByCategory,
+            llmConfig,
+          );
+        } catch {
+          id = null; // не получилось — помечаем как «без категории», выносим наверх
+        }
+        if (id) found++;
+        setAiResults((prev) => ({ ...prev, [u.key]: id }));
+      }
+      setAiMsg(`ИИ подобрал категорию для ${found} из ${unknownKeys.length}`);
     } finally {
-      setAiBusy(false);
+      setAiRunning(false);
+      aiRunRef.current = false;
     }
   }
 
@@ -112,9 +136,9 @@ export function ImportReview({
             {totalSteps}
           </span>
         </div>
-        {llmConfig && onSetChoices && unknownKeys.length > 0 && (
-          <button type="button" className="btn" onClick={runAi} disabled={busy || aiBusy}>
-            <IconSparkles /> {aiBusy ? '…' : 'ИИ'}
+        {llmConfig && unknownKeys.length > 0 && (
+          <button type="button" className="btn" onClick={runAi} disabled={busy || aiRunning}>
+            <IconSparkles /> {aiRunning ? '…' : 'ИИ'}
           </button>
         )}
       </div>
@@ -135,16 +159,25 @@ export function ImportReview({
             onSetRate={(r) => onSetRate(step, r)}
           />
         ) : (
-          <CategoryStep
-            item={unknownKeys[step - fxNeeds.length]}
-            categories={categories}
-            selectedId={choices[unknownKeys[step - fxNeeds.length].key] ?? null}
-            onPick={(id) => {
-              onSetCategory(unknownKeys[step - fxNeeds.length].key, id);
-              next();
-            }}
-            onCreateCategory={onCreateCategory}
-          />
+          (() => {
+            const cur = unknownKeys[step - fxNeeds.length];
+            const aiDone = cur.key in aiResults;
+            return (
+              <CategoryStep
+                item={cur}
+                categories={categories}
+                selectedId={choices[cur.key] ?? null}
+                aiPending={aiStarted && !aiDone}
+                aiSuggestion={aiDone ? aiResults[cur.key] : undefined}
+                onPick={(id) => {
+                  onSetCategory(cur.key, id);
+                  next();
+                }}
+                onSkip={next}
+                onCreateCategory={onCreateCategory}
+              />
+            );
+          })()
         )}
       </div>
 
@@ -195,13 +228,22 @@ function CategoryStep({
   item,
   categories,
   selectedId,
+  aiPending,
+  aiSuggestion,
   onPick,
+  onSkip,
   onCreateCategory,
 }: {
   item: UnknownKey;
   categories: Category[];
   selectedId: string | null;
+  /** ИИ ещё считает по этой операции — показываем скелетон сверху. */
+  aiPending: boolean;
+  /** Результат ИИ: id категории, null (подходящей нет) или undefined (ещё не считал). */
+  aiSuggestion: string | null | undefined;
   onPick: (id: string) => void;
+  /** Пропустить операцию (оставить без категории) — для ИИ-варианта «без категории». */
+  onSkip: () => void;
   onCreateCategory: (data: { name: string; kind: CategoryKind; color: string }) => Promise<Category>;
 }) {
   const [creating, setCreating] = useState(false);
@@ -220,11 +262,22 @@ function CategoryStep({
     });
   }, [categories, item.suggestedKind]);
 
-  const filtered = useMemo(() => {
+  const baseFiltered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return sorted;
     return sorted.filter((c) => c.name.toLowerCase().includes(q));
   }, [sorted, search]);
+
+  // Если ИИ подобрал категорию — поднимаем её плашку наверх (со значком ИИ).
+  const filtered = useMemo(() => {
+    if (!aiSuggestion) return baseFiltered;
+    const idx = baseFiltered.findIndex((c) => c.id === aiSuggestion);
+    if (idx <= 0) return baseFiltered;
+    const copy = [...baseFiltered];
+    const [picked] = copy.splice(idx, 1);
+    copy.unshift(picked);
+    return copy;
+  }, [baseFiltered, aiSuggestion]);
 
   const sign = item.sampleAmount < 0 ? 'neg' : 'pos';
 
@@ -268,17 +321,33 @@ function CategoryStep({
         />
       )}
       <div className="pill-grid">
-        {filtered.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            className={`pill ${selectedId === c.id ? 'selected' : ''}`}
-            onClick={() => onPick(c.id)}
-          >
-            <span className="dot" style={{ background: c.color }} />
-            {c.name}
+        {aiPending && (
+          <span className="pill pill-skeleton" aria-label="ИИ подбирает категорию">
+            <span className="pill-skeleton-bar" />
+            <IconSparkles className="pill-ai-icon" />
+          </span>
+        )}
+        {!aiPending && aiSuggestion === null && (
+          <button type="button" className="pill pill-ai" onClick={onSkip}>
+            Без категории
+            <IconSparkles className="pill-ai-icon" />
           </button>
-        ))}
+        )}
+        {filtered.map((c) => {
+          const isAi = !aiPending && aiSuggestion === c.id;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              className={`pill ${selectedId === c.id ? 'selected' : ''} ${isAi ? 'pill-ai' : ''}`}
+              onClick={() => onPick(c.id)}
+            >
+              <span className="dot" style={{ background: c.color }} />
+              {c.name}
+              {isAi && <IconSparkles className="pill-ai-icon" />}
+            </button>
+          );
+        })}
         {filtered.length === 0 && <span className="muted small">Ничего не найдено</span>}
         {!creating && (
           <button type="button" className="pill pill-new" onClick={() => setCreating(true)}>

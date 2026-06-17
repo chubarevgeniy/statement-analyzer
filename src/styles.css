@@ -1166,6 +1166,43 @@ input[type='checkbox'] {
   border-color: var(--accent);
   background: transparent;
 }
+/* Плашка, поднятая наверх подсказкой ИИ. */
+.pill-ai {
+  border-color: var(--accent);
+}
+.pill-ai-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+  flex: none;
+}
+/* Скелетон первой плашки, пока ИИ подбирает категорию. */
+.pill-skeleton {
+  pointer-events: none;
+  border-color: var(--accent);
+}
+.pill-skeleton-bar {
+  display: block;
+  width: 88px;
+  height: 13px;
+  border-radius: 7px;
+  background: linear-gradient(
+    90deg,
+    var(--border-soft) 25%,
+    var(--surface-2) 37%,
+    var(--border-soft) 63%
+  );
+  background-size: 400% 100%;
+  animation: pill-shimmer 1.3s ease-in-out infinite;
+}
+@keyframes pill-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
 .cat-create-box {
   margin-top: 18px;
   padding: 16px;

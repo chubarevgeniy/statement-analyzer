@@ -4,7 +4,7 @@ import { commitImport, prepareImport, type ImportPrep, type UnknownKey } from '.
 import { lookupRate } from '../services/fx';
 import { putCategory } from '../db/categoriesDb';
 import { allOwners } from '../services/internalTransfers';
-import type { Account, Category, CategoryKind, Settings } from '../types';
+import type { Account, Category, CategoryKind, Mapping, Settings } from '../types';
 import { ownerLabel } from '../ui/format';
 import { IconClose, IconImport } from '../ui/icons';
 import { ImportReview, type FxNeedRow } from './ImportReview';
@@ -29,11 +29,13 @@ export function ImportPanel({
   categories,
   accounts,
   settings,
+  mappings,
   onImported,
 }: {
   categories: Category[];
   accounts: Account[];
   settings: Settings;
+  mappings: Mapping[];
   onImported: () => Promise<void>;
 }) {
   const [staged, setStaged] = useState<File[]>([]);
@@ -57,11 +59,11 @@ export function ImportPanel({
     return Array.from(m.values());
   }, [categories, extraCategories]);
 
-  function addFiles(files: FileList | null) {
-    if (!files) return;
+  function addFiles(files: File[]) {
+    if (files.length === 0) return;
     setStaged((prev) => {
       const byKey = new Map(prev.map((f) => [`${f.name}:${f.size}`, f]));
-      for (const f of Array.from(files)) byKey.set(`${f.name}:${f.size}`, f);
+      for (const f of files) byKey.set(`${f.name}:${f.size}`, f);
       return Array.from(byKey.values());
     });
   }
@@ -199,7 +201,7 @@ export function ImportPanel({
         choices={choices}
         busy={busy}
         llmConfig={llmConfig}
-        onSetChoices={(next) => setChoices((prev) => ({ ...prev, ...next }))}
+        mappings={mappings}
         onSetRate={(i, rate) =>
           setPending((prev) =>
             prev ? { ...prev, fxNeeds: prev.fxNeeds.map((x, j) => (j === i ? { ...x, rate } : x)) } : prev,
@@ -249,8 +251,11 @@ export function ImportPanel({
           multiple
           disabled={busy}
           onChange={(e) => {
-            addFiles(e.target.files);
+            // Снимаем список файлов СИНХРОННО: сброс value='' очищает e.target.files
+            // раньше, чем отложенный апдейтер setStaged успеет его прочитать.
+            const picked = Array.from(e.target.files ?? []);
             e.target.value = '';
+            addFiles(picked);
           }}
         />
         <span className="dropzone-badge">

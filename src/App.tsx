@@ -63,6 +63,7 @@ export default function App() {
             categories={data.categories}
             accounts={data.accounts}
             settings={data.settings}
+            mappings={data.mappings}
             onImported={data.reload}
           />
         ) : tab === 'transactions' ? (
@@ -71,6 +72,7 @@ export default function App() {
             accounts={data.accounts}
             categories={data.categories}
             settings={data.settings}
+            mappings={data.mappings}
             onChange={data.reload}
             presetCategoryId={categoryFilter}
           />

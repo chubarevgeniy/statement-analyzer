@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Account, Category, CategoryKind, Settings, StoredTxn } from '../types';
+import type { Account, Category, CategoryKind, Mapping, Settings, StoredTxn } from '../types';
 import { assignCategory, assignCategoryBulk, applyChoicesToTxns } from '../services/categorize';
 import { categoryKey } from '../services/categoryKey';
 import { resolveCounterpartyOwners, allOwners } from '../services/internalTransfers';
@@ -19,6 +19,7 @@ export function TransactionsTable({
   accounts,
   categories,
   settings,
+  mappings,
   onChange,
   presetCategoryId,
 }: {
@@ -26,6 +27,7 @@ export function TransactionsTable({
   accounts: Account[];
   categories: Category[];
   settings: Settings;
+  mappings: Mapping[];
   onChange: () => Promise<void>;
   /** Извне заданный фильтр по категории (например, переход «посмотреть» с дашборда). */
   presetCategoryId?: string | null;
@@ -264,9 +266,9 @@ export function TransactionsTable({
         choices={choices}
         busy={busy}
         llmConfig={llmConfig}
+        mappings={mappings}
         onSetRate={() => {}}
         onSetCategory={(key, categoryId) => setChoices((prev) => ({ ...prev, [key]: categoryId }))}
-        onSetChoices={(next) => setChoices((prev) => ({ ...prev, ...next }))}
         onCreateCategory={createCategory}
         onCancel={() => {
           setWizard(false);

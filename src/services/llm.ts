@@ -72,6 +72,101 @@ function extractJsonArray(text: string): unknown {
   return JSON.parse(body.slice(start, end + 1));
 }
 
+/** Достаёт JSON-объект из ответа модели (для одиночной операции). null — если не нашёлся. */
+function extractJsonObject(text: string): Record<string, unknown> | null {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const body = fenced ? fenced[1] : text;
+  const start = body.indexOf('{');
+  const end = body.lastIndexOf('}');
+  if (start === -1 || end === -1 || end < start) return null;
+  try {
+    const parsed = JSON.parse(body.slice(start, end + 1));
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Собирает примеры уже отнесённых операций по категориям (categoryId → описания).
+ * Источник — сохранённые маппинги (ключ операции уже является «образцом» мерчанта).
+ * Параметр `extra` позволяет добавить примеры, выбранные прямо в текущей сессии.
+ */
+export function buildCategoryExamples(
+  pairs: { categoryId: string; text: string }[],
+  limitPerCategory = 8,
+): Map<string, string[]> {
+  const m = new Map<string, string[]>();
+  for (const { categoryId, text } of pairs) {
+    const t = text.trim();
+    if (!categoryId || !t) continue;
+    const arr = m.get(categoryId) ?? [];
+    if (arr.length < limitPerCategory && !arr.includes(t)) {
+      arr.push(t);
+      m.set(categoryId, arr);
+    }
+  }
+  return m;
+}
+
+function buildSingleItemPrompt(
+  item: LlmItem,
+  categories: Category[],
+  examples: Map<string, string[]>,
+): string {
+  const catList = categories
+    .map((c) => {
+      const ex = examples.get(c.id) ?? [];
+      const exLine = ex.length ? `\n    примеры: ${ex.map((s) => `"${s}"`).join(', ')}` : '';
+      return `- ${c.id} :: ${c.name} (${c.kind})${exLine}`;
+    })
+    .join('\n');
+  const sign = item.amount < 0 ? 'расход' : 'доход';
+  return (
+    `Ты категоризируешь ОДНУ банковскую операцию.\n` +
+    `Доступные категории (формат «id :: название (вид)») и примеры уже отнесённых к ним операций:\n${catList}\n\n` +
+    `Операция:\n"${item.description}" | ${item.amount} ${item.currency} (${sign})\n\n` +
+    `Выбери НАИБОЛЕЕ подходящую категорию по её id, опираясь на примеры выше.\n` +
+    `Если уверенной подходящей категории нет — верни null (не угадывай).\n` +
+    `Ответь СТРОГО валидным JSON-объектом без пояснений: {"categoryId": "<id категории или null>"}.`
+  );
+}
+
+/**
+ * Просит LLM подобрать категорию для ОДНОЙ операции, передавая модели примеры
+ * уже отнесённых операций по каждой категории. Возвращает id категории либо null,
+ * если подходящей нет. Категорию НЕ применяет — это лишь подсказка для UI.
+ */
+export async function suggestCategoryForItem(
+  item: LlmItem,
+  categories: Category[],
+  examples: Map<string, string[]>,
+  config: LlmConfig,
+): Promise<string | null> {
+  const base = normalizeBaseUrl(config.baseUrl);
+  if (!base || !config.model) throw new Error('Не настроен адрес или модель ИИ');
+  const validIds = new Set(categories.map((c) => c.id));
+
+  const res = await fetch(`${base}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: config.model,
+      temperature: 0,
+      messages: [
+        { role: 'system', content: 'Ты аккуратный помощник по финансам. Отвечаешь только JSON.' },
+        { role: 'user', content: buildSingleItemPrompt(item, categories, examples) },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`Ошибка ИИ: HTTP ${res.status}`);
+  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  const content = data.choices?.[0]?.message?.content ?? '';
+  const obj = extractJsonObject(content);
+  const id = obj && typeof obj.categoryId === 'string' ? obj.categoryId : null;
+  return id && id !== 'null' && validIds.has(id) ? id : null;
+}
+
 /**
  * Просит LLM сопоставить операции с существующими категориями.
  * Возвращает Map key → categoryId (только валидные id из переданных категорий).
