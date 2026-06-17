@@ -62,6 +62,27 @@ function buildPrompt(items: LlmItem[], categories: Category[]): string {
   );
 }
 
+function buildSingleItemPrompt(item: LlmItem, categories: Category[], examples: Record<string, string[]>): string {
+  const catList = categories
+    .map((c) => {
+      const exps = examples[c.id] || [];
+      const expsText = exps.length > 0 ? ` Примеры: ${exps.join(', ')}` : '';
+      return `- ${c.id} :: ${c.name} (${c.kind})${expsText}`;
+    })
+    .join('\n');
+  const sign = item.amount < 0 ? 'расход' : 'доход';
+  const op = `key="${item.key}" | "${item.description}" | ${item.amount} ${item.currency} (${sign})`;
+  return (
+    `Ты помогаешь категоризировать банковскую операцию.\n` +
+    `Доступные категории (формат «id :: название (вид) Примеры: ...»):\n${catList}\n\n` +
+    `Операция:\n${op}\n\n` +
+    `Выбери НАИБОЛЕЕ подходящую категорию из списка выше по её id.\n` +
+    `Если уверенной категории нет — используй null.\n` +
+    `Ответь СТРОГО валидным JSON-объектом без пояснений: ` +
+    `{"categoryId": "<id категории или null>"}.`
+  );
+}
+
 /** Достаёт JSON-массив из ответа модели (на случай обёрток ```json и текста вокруг). */
 function extractJsonArray(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -70,6 +91,51 @@ function extractJsonArray(text: string): unknown {
   const end = body.lastIndexOf(']');
   if (start === -1 || end === -1 || end < start) throw new Error('В ответе модели нет JSON-массива');
   return JSON.parse(body.slice(start, end + 1));
+}
+
+function extractJsonObject(text: string): unknown {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const body = fenced ? fenced[1] : text;
+  const start = body.indexOf('{');
+  const end = body.lastIndexOf('}');
+  if (start === -1 || end === -1 || end < start) throw new Error('В ответе модели нет JSON-объекта');
+  return JSON.parse(body.slice(start, end + 1));
+}
+
+/**
+ * Просит LLM сопоставить одну операцию с категорией.
+ */
+export async function suggestSingleCategoryLlm(
+  item: LlmItem,
+  categories: Category[],
+  examples: Record<string, string[]>,
+  config: LlmConfig,
+): Promise<string | null> {
+  const base = normalizeBaseUrl(config.baseUrl);
+  if (!base || !config.model) throw new Error('Не настроен адрес или модель ИИ');
+
+  const validIds = new Set(categories.map((c) => c.id));
+
+  const res = await fetch(`${base}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: config.model,
+      temperature: 0,
+      messages: [
+        { role: 'system', content: 'Ты аккуратный помощник по финансам. Отвечаешь только JSON.' },
+        { role: 'user', content: buildSingleItemPrompt(item, categories, examples) },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`Ошибка ИИ: HTTP ${res.status}`);
+  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  const content = data.choices?.[0]?.message?.content ?? '';
+  const parsed = extractJsonObject(content) as { categoryId?: string | null };
+
+  const id = parsed.categoryId;
+  if (id && id !== 'null' && validIds.has(id)) return id;
+  return null;
 }
 
 /**

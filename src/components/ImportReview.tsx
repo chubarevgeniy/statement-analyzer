@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import type { Category, CategoryKind, LlmConfig } from '../types';
 import type { UnknownKey } from '../services/import';
-import { suggestCategoriesLlm, type LlmItem } from '../services/llm';
+import { suggestSingleCategoryLlm } from '../services/llm';
 import { bankLabel, formatDate, formatEur } from '../ui/format';
 import { IconClose, IconSparkles } from '../ui/icons';
 
@@ -31,9 +31,9 @@ export function ImportReview({
   choices,
   busy,
   llmConfig,
+  examples,
   onSetRate,
   onSetCategory,
-  onSetChoices,
   onCreateCategory,
   onCancel,
   onConfirm,
@@ -46,6 +46,7 @@ export function ImportReview({
   busy: boolean;
   /** Конфиг локального ИИ (если включён) — показывает кнопку авто-распознавания. */
   llmConfig?: LlmConfig | null;
+  examples?: Record<string, string[]>;
   onSetRate: (index: number, rate: number | '') => void;
   onSetCategory: (key: string, categoryId: string) => void;
   /** Массовая установка выборов (для ИИ-распознавания). */
@@ -58,35 +59,10 @@ export function ImportReview({
   // Шаги: сначала курсы, затем категории, последний шаг — подтверждение.
   const totalSteps = fxNeeds.length + unknownKeys.length;
   const [step, setStep] = useState(0);
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiMsg, setAiMsg] = useState<string | null>(null);
-
-  async function runAi() {
-    if (!llmConfig || !onSetChoices || unknownKeys.length === 0) return;
-    setAiBusy(true);
-    setAiMsg(null);
-    try {
-      const items: LlmItem[] = unknownKeys.map((u) => ({
-        key: u.key,
-        description: u.sampleDescription,
-        amount: u.sampleAmount,
-        currency: u.sampleCurrency,
-      }));
-      const suggestions = await suggestCategoriesLlm(items, categories, llmConfig);
-      const next: Record<string, string> = {};
-      for (const [key, id] of suggestions) next[key] = id;
-      onSetChoices(next);
-      setAiMsg(`ИИ распознал ${suggestions.size} из ${unknownKeys.length}`);
-    } catch (e) {
-      setAiMsg('Ошибка ИИ: ' + (e instanceof Error ? e.message : String(e)));
-    } finally {
-      setAiBusy(false);
-    }
-  }
 
   const resolvedCount =
     fxNeeds.filter((f) => f.rate !== '').length +
-    unknownKeys.filter((u) => choices[u.key]).length;
+    unknownKeys.filter((u) => choices[u.key] && choices[u.key] !== '__none__').length;
 
   const next = () => setStep((s) => Math.min(s + 1, totalSteps));
   const prev = () => setStep((s) => Math.max(s - 1, 0));
@@ -112,13 +88,7 @@ export function ImportReview({
             {totalSteps}
           </span>
         </div>
-        {llmConfig && onSetChoices && unknownKeys.length > 0 && (
-          <button type="button" className="btn" onClick={runAi} disabled={busy || aiBusy}>
-            <IconSparkles /> {aiBusy ? '…' : 'ИИ'}
-          </button>
-        )}
       </div>
-      {aiMsg && <div className="ai-msg muted small">{aiMsg}</div>}
 
       <div className="review-body">
         {isConfirmStep ? (
@@ -139,6 +109,8 @@ export function ImportReview({
             item={unknownKeys[step - fxNeeds.length]}
             categories={categories}
             selectedId={choices[unknownKeys[step - fxNeeds.length].key] ?? null}
+            llmConfig={llmConfig}
+            examples={examples}
             onPick={(id) => {
               onSetCategory(unknownKeys[step - fxNeeds.length].key, id);
               next();
@@ -195,12 +167,16 @@ function CategoryStep({
   item,
   categories,
   selectedId,
+  llmConfig,
+  examples,
   onPick,
   onCreateCategory,
 }: {
   item: UnknownKey;
   categories: Category[];
   selectedId: string | null;
+  llmConfig?: LlmConfig | null;
+  examples?: Record<string, string[]>;
   onPick: (id: string) => void;
   onCreateCategory: (data: { name: string; kind: CategoryKind; color: string }) => Promise<Category>;
 }) {
@@ -210,15 +186,39 @@ function CategoryStep({
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
 
+  const [aiResult, setAiResult] = useState<string | null | undefined>(undefined);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  useEffect(() => {
+    if (!llmConfig || aiResult !== undefined || aiLoading) return;
+    setAiLoading(true);
+    suggestSingleCategoryLlm(
+      { key: item.key, description: item.sampleDescription, amount: item.sampleAmount, currency: item.sampleCurrency },
+      categories,
+      examples || {},
+      llmConfig
+    )
+      .then((res) => {
+        setAiResult(res);
+      })
+      .catch((e) => {
+        console.error('AI Error:', e);
+        setAiResult(null);
+      })
+      .finally(() => setAiLoading(false));
+  }, [item.key, llmConfig, categories, examples, aiResult, aiLoading, item.sampleDescription, item.sampleAmount, item.sampleCurrency]);
+
   // Категории-подсказки (совпадающие по виду) — вперёд.
   const sorted = useMemo(() => {
     return [...categories].sort((a, b) => {
+      if (aiResult && a.id === aiResult) return -1;
+      if (aiResult && b.id === aiResult) return 1;
       const am = a.kind === item.suggestedKind ? 0 : 1;
       const bm = b.kind === item.suggestedKind ? 0 : 1;
       if (am !== bm) return am - bm;
       return a.name.localeCompare(b.name, 'ru');
     });
-  }, [categories, item.suggestedKind]);
+  }, [categories, item.suggestedKind, aiResult]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -268,6 +268,21 @@ function CategoryStep({
         />
       )}
       <div className="pill-grid">
+        {aiLoading && (
+          <button type="button" className="pill" disabled>
+            <span className="dot" style={{ background: '#ccc' }} />
+            ИИ думает... <IconSparkles />
+          </button>
+        )}
+        {aiResult === null && !aiLoading && (
+          <button
+            type="button"
+            className={`pill ${selectedId === '__none__' ? 'selected' : ''}`}
+            onClick={() => onPick('__none__')}
+          >
+            Без категории <IconSparkles />
+          </button>
+        )}
         {filtered.map((c) => (
           <button
             key={c.id}
@@ -276,7 +291,7 @@ function CategoryStep({
             onClick={() => onPick(c.id)}
           >
             <span className="dot" style={{ background: c.color }} />
-            {c.name}
+            {c.name} {aiResult === c.id && <IconSparkles />}
           </button>
         ))}
         {filtered.length === 0 && <span className="muted small">Ничего не найдено</span>}
@@ -336,7 +351,7 @@ function ConfirmStep({
   onJump: (step: number) => void;
 }) {
   const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
-  const unresolved = unknownKeys.filter((u) => !choices[u.key]).length;
+  const unresolved = unknownKeys.filter((u) => !choices[u.key] || choices[u.key] === '__none__').length;
 
   return (
     <div className="review-card review-summary">
@@ -360,7 +375,8 @@ function ConfirmStep({
           </li>
         ))}
         {unknownKeys.map((u, i) => {
-          const cat = choices[u.key] ? catById.get(choices[u.key]) : undefined;
+          const catId = choices[u.key];
+          const cat = catId && catId !== '__none__' ? catById.get(catId) : undefined;
           return (
             <li key={u.key} onClick={() => onJump(fxNeeds.length + i)}>
               <span className="summary-name">{u.sampleDescription}</span>

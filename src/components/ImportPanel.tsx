@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { parseFile } from '../parsers';
 import { commitImport, prepareImport, type ImportPrep, type UnknownKey } from '../services/import';
 import { lookupRate } from '../services/fx';
-import { putCategory } from '../db/categoriesDb';
+import { getMappings, putCategory } from '../db/categoriesDb';
 import { allOwners } from '../services/internalTransfers';
 import type { Account, Category, CategoryKind, Settings } from '../types';
 import { ownerLabel } from '../ui/format';
@@ -21,6 +21,7 @@ interface PendingResolution {
   preps: ImportPrep[];
   unknownKeys: UnknownKey[];
   fxNeeds: FxNeedRow[];
+  examples: Record<string, string[]>;
 }
 
 const AUTO_OWNER = '__auto__';
@@ -59,9 +60,10 @@ export function ImportPanel({
 
   function addFiles(files: FileList | null) {
     if (!files) return;
+    const newFiles = Array.from(files);
     setStaged((prev) => {
       const byKey = new Map(prev.map((f) => [`${f.name}:${f.size}`, f]));
-      for (const f of Array.from(files)) byKey.set(`${f.name}:${f.size}`, f);
+      for (const f of newFiles) byKey.set(`${f.name}:${f.size}`, f);
       return Array.from(byKey.values());
     });
   }
@@ -140,9 +142,20 @@ export function ImportPanel({
       }),
     );
 
+    let examples: Record<string, string[]> = {};
+    if (llmConfig && unknownKeys.length > 0) {
+      const mappings = await getMappings();
+      for (const m of mappings) {
+        if (!examples[m.categoryId]) examples[m.categoryId] = [];
+        if (examples[m.categoryId].length < 5) {
+          examples[m.categoryId].push(m.key);
+        }
+      }
+    }
+
     setReports(doneReports);
     setChoices({});
-    setPending({ preps, unknownKeys, fxNeeds });
+    setPending({ preps, unknownKeys, fxNeeds, examples });
     setBusy(false);
   }
 
@@ -166,7 +179,7 @@ export function ImportPanel({
     const categoryByKey = new Map<string, string>();
     for (const u of pending.unknownKeys) {
       const id = choices[u.key];
-      if (id) categoryByKey.set(u.key, id);
+      if (id && id !== '__none__') categoryByKey.set(u.key, id);
     }
 
     const fxRates = new Map<string, number>();
@@ -199,6 +212,7 @@ export function ImportPanel({
         choices={choices}
         busy={busy}
         llmConfig={llmConfig}
+        examples={pending.examples}
         onSetChoices={(next) => setChoices((prev) => ({ ...prev, ...next }))}
         onSetRate={(i, rate) =>
           setPending((prev) =>
