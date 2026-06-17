@@ -94,12 +94,16 @@ export async function prepareImport(
     if (needsFx) fxNeedSet.set(`${t.currency}:${t.bookingDate}`, { currency: t.currency, date: t.bookingDate });
 
     let categoryId = autoCategoryId(t.type);
-    if (categoryId == null && !t.isTransfer) {
+    if (categoryId == null) {
       const key = categoryKey(t);
       const mapped = mapByKey.get(key);
       if (mapped) {
+        // Выученные маппинги применяем и к переводам (напр. ежемесячная аренда),
+        // чтобы внешние переводы попадали в свою категорию автоматически.
         categoryId = mapped.categoryId;
-      } else if (key) {
+      } else if (key && !t.isTransfer) {
+        // Но в ручной разбор при импорте переводы не добавляем: их внутренний/
+        // внешний статус определяется позже, динамически.
         const u = unknownMap.get(key);
         if (u) u.count++;
         else

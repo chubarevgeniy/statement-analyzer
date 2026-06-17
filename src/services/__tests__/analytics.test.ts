@@ -115,6 +115,22 @@ describe('analyze', () => {
     expect(r.expense).toBeCloseTo(500);
   });
 
+  it('инвестиции не попадают в расход даже если категория НЕ исключена', () => {
+    // Раньше при включённой категории «Накопления» её отток считался и расходом,
+    // и вкладом в инвестиции — сумма двоилась. Теперь — только вклад.
+    const withTrade = [...txns, txn({ id: 'f', amount: -400, type: 'trade', categoryId: 'savings' })];
+    const r = analyze(withTrade, accounts, BUILTIN_CATEGORIES, {
+      period: { start: '2026-01-01', end: '2026-01-31' },
+      selectedOwners: ['test person'],
+      excludedCategoryIds: ['internal'], // 'savings' НЕ исключена
+    });
+    expect(r.savingsContributions).toBeCloseTo(400);
+    expect(r.expense).toBeCloseTo(500); // 200 карта + 300 внешний перевод, без 400 инвестиций
+    expect(r.net).toBeCloseTo(500);
+    // Тождество «изменение кэша = сальдо − вложения» должно сходиться.
+    expect(r.net - r.savingsContributions).toBeCloseTo(100);
+  });
+
   it('dateRange возвращает границы', () => {
     expect(dateRange(txns)).toEqual({ start: '2026-01-15', end: '2026-01-15' });
   });

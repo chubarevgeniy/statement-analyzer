@@ -6,7 +6,7 @@ import { categoryKey } from './categoryKey';
 /** Назначает категорию операции и запоминает маппинг для будущих импортов. */
 export async function assignCategory(t: StoredTxn, categoryId: string | null): Promise<void> {
   await updateTxnCategory(t.id, categoryId);
-  if (categoryId && !t.isTransfer) {
+  if (categoryId) {
     const key = categoryKey(t);
     if (key) await putMapping({ key, categoryId });
   }
@@ -25,7 +25,6 @@ export async function assignCategoryBulk(
   if (categoryId) {
     const keys = new Set<string>();
     for (const t of txns) {
-      if (t.isTransfer) continue;
       const key = categoryKey(t);
       if (key) keys.add(key);
     }
@@ -42,7 +41,6 @@ export async function applyChoicesToTxns(
   categoryByKey: Map<string, string>,
 ): Promise<void> {
   for (const t of txns) {
-    if (t.isTransfer) continue;
     const key = categoryKey(t);
     const categoryId = categoryByKey.get(key);
     if (categoryId) await updateTxnCategory(t.id, categoryId);

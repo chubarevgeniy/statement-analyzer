@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Account, Category, CategoryKind, Settings, StoredTxn } from '../types';
 import { assignCategory, assignCategoryBulk, applyChoicesToTxns } from '../services/categorize';
 import { categoryKey } from '../services/categoryKey';
-import { resolveCounterpartyOwners, allOwners } from '../services/internalTransfers';
+import { resolveCounterpartyOwners, allOwners, isInternal } from '../services/internalTransfers';
 import { suggestCategoriesLlm, type LlmItem } from '../services/llm';
 import { updateTxnManualTransferOwner } from '../db/transactionsDb';
 import { putCategory } from '../db/categoriesDb';
@@ -13,6 +13,24 @@ import type { UnknownKey } from '../services/import';
 
 const AUTO = '__auto__';
 const EXTERNAL = '__external__';
+const INTERNAL = '__internal__';
+
+/**
+ * Контекст перехода с дашборда: какую «корзину» открыть и в каком разрезе
+ * (профили/период), чтобы агрегированная сумма совпадала с дашбордом.
+ */
+export interface TxnView {
+  /** Категория: id, '__none__' (без категории) или undefined. */
+  categoryId?: string | null;
+  /** Открыть псевдокатегорию «внутренние переводы». */
+  internal?: boolean;
+  /** Профили (владельцы), выбранные на дашборде; [] = все. */
+  owners: string[];
+  /** Активный период дашборда. */
+  period: { start: string; end: string };
+  /** Метка, чтобы эффект срабатывал даже при том же фильтре. */
+  nonce: number;
+}
 
 export function TransactionsTable({
   txns,
@@ -20,15 +38,15 @@ export function TransactionsTable({
   categories,
   settings,
   onChange,
-  presetCategoryId,
+  view,
 }: {
   txns: StoredTxn[];
   accounts: Account[];
   categories: Category[];
   settings: Settings;
   onChange: () => Promise<void>;
-  /** Извне заданный фильтр по категории (например, переход «посмотреть» с дашборда). */
-  presetCategoryId?: string | null;
+  /** Контекст перехода «посмотреть» с дашборда (категория + разрез). */
+  view?: TxnView | null;
 }) {
   const [query, setQuery] = useState('');
   const [ownerFilter, setOwnerFilter] = useState('');
@@ -36,6 +54,8 @@ export function TransactionsTable({
   const [bankFilter, setBankFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  /** Разрез по профилям, перенесённый с дашборда (пусто = без ограничения). */
+  const [scopeOwners, setScopeOwners] = useState<string[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -50,14 +70,31 @@ export function TransactionsTable({
     null,
   );
 
+  // Переход с дашборда: переносим категорию, разрез по профилям и период,
+  // чтобы набор операций и сумма совпадали с тем, что показано на дашборде.
   useEffect(() => {
-    if (presetCategoryId !== undefined) setCatFilter(presetCategoryId ?? '__none__');
-  }, [presetCategoryId]);
+    if (!view) return;
+    setQuery('');
+    setBankFilter('');
+    setOwnerFilter('');
+    setScopeOwners(view.owners);
+    setDateFrom(view.period.start);
+    setDateTo(view.period.end);
+    setCatFilter(view.internal ? INTERNAL : view.categoryId ?? '__none__');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view?.nonce]);
 
   const llmConfig = settings.llm?.enabled ? settings.llm : null;
   const cpOwner = useMemo(() => resolveCounterpartyOwners(txns, accounts), [txns, accounts]);
   const owners = useMemo(() => allOwners(accounts), [accounts]);
   const banks = useMemo(() => Array.from(new Set(txns.map((t) => t.bank))), [txns]);
+
+  // Множество профилей для определения «внутренних» переводов — тот же разрез,
+  // что и на дашборде (выбранные профили, иначе все).
+  const ownerScopeSet = useMemo(
+    () => new Set(scopeOwners.length ? scopeOwners : owners),
+    [scopeOwners, owners],
+  );
 
   const allCategories = useMemo(() => {
     const m = new Map<string, Category>();
@@ -67,16 +104,30 @@ export function TransactionsTable({
   }, [categories, extraCategories]);
 
   const activeFilters =
-    (ownerFilter ? 1 : 0) + (bankFilter ? 1 : 0) + (catFilter ? 1 : 0) + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0);
+    (ownerFilter ? 1 : 0) +
+    (bankFilter ? 1 : 0) +
+    (catFilter ? 1 : 0) +
+    (dateFrom ? 1 : 0) +
+    (dateTo ? 1 : 0) +
+    (scopeOwners.length ? 1 : 0);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const scope = scopeOwners.length ? new Set(scopeOwners) : null;
     return txns
       .filter((t) => {
+        if (scope && !scope.has(t.accountOwner)) return false;
         if (ownerFilter && t.accountOwner !== ownerFilter) return false;
         if (bankFilter && t.bank !== bankFilter) return false;
-        if (catFilter === '__none__' && t.categoryId != null) return false;
-        if (catFilter && catFilter !== '__none__' && t.categoryId !== catFilter) return false;
+        const internalRow = isInternal(t, cpOwner.get(t.id) ?? null, ownerScopeSet);
+        if (catFilter === INTERNAL) {
+          if (!internalRow) return false;
+        } else if (catFilter === '__none__') {
+          // «Без категории» на дашборде не включает внутренние переводы.
+          if (t.categoryId != null || internalRow) return false;
+        } else if (catFilter) {
+          if (t.categoryId !== catFilter) return false;
+        }
         if (dateFrom && t.bookingDate < dateFrom) return false;
         if (dateTo && t.bookingDate > dateTo) return false;
         if (q) {
@@ -86,7 +137,7 @@ export function TransactionsTable({
         return true;
       })
       .sort((a, b) => (a.bookingDate < b.bookingDate ? 1 : -1));
-  }, [txns, query, ownerFilter, catFilter, bankFilter, dateFrom, dateTo]);
+  }, [txns, query, ownerFilter, catFilter, bankFilter, dateFrom, dateTo, scopeOwners, cpOwner, ownerScopeSet]);
 
   const shown = rows.slice(0, 1000);
   const rowsSum = useMemo(() => rows.reduce((acc, t) => acc + t.eurAmount, 0), [rows]);
@@ -126,10 +177,10 @@ export function TransactionsTable({
   async function changeCategory(t: StoredTxn, categoryId: string) {
     const id = categoryId || null;
     await assignCategory(t, id);
-    if (id && !t.isTransfer) {
+    if (id) {
       const key = categoryKey(t);
       const others = txns.filter(
-        (x) => x.id !== t.id && !x.isTransfer && x.categoryId !== id && categoryKey(x) === key,
+        (x) => x.id !== t.id && x.categoryId !== id && categoryKey(x) === key,
       );
       if (others.length > 0) {
         const name = allCategories.find((c) => c.id === id)?.name ?? '';
@@ -254,6 +305,7 @@ export function TransactionsTable({
     setCatFilter('');
     setDateFrom('');
     setDateTo('');
+    setScopeOwners([]);
   }
 
   if (wizard) {
@@ -291,6 +343,14 @@ export function TransactionsTable({
           {activeFilters > 0 && <span className="filter-badge">{activeFilters}</span>}
         </button>
       </div>
+
+      {scopeOwners.length > 0 && (
+        <div className="chip-row">
+          <button className="chip active" onClick={() => setScopeOwners([])} title="Снять разрез по профилям">
+            {scopeOwners.length === 1 ? ownerLabel(scopeOwners[0]) : `Профили: ${scopeOwners.length}`} ✕
+          </button>
+        </div>
+      )}
 
       <div className="toolbar" style={{ justifyContent: 'space-between' }}>
         <span className="muted small">Найдено: {rows.length} на сумму <span className={rowsSum < 0 ? 'neg' : rowsSum > 0 ? 'pos' : ''}>{formatEur(rowsSum)}</span></span>
@@ -332,7 +392,7 @@ export function TransactionsTable({
         ) : (
           <div className="txn-list">
             {shown.map((t) => {
-              const internal = cpOwner.get(t.id) != null && t.isTransfer;
+              const internal = isInternal(t, cpOwner.get(t.id) ?? null, ownerScopeSet);
               const isSel = selected.has(t.id);
               return (
                 <div key={t.id} className={`txn-row ${isSel ? 'selected' : ''}`}>
@@ -529,6 +589,7 @@ function FilterSheet({
           <select value={catFilter} onChange={(e) => onCat(e.target.value)}>
             <option value="">Все категории</option>
             <option value="__none__">— без категории —</option>
+            <option value={INTERNAL}>Внутренние переводы</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}

@@ -30,6 +30,7 @@ import { putSettings } from '../db/categoriesDb';
 import { formatEur, ownerLabel } from '../ui/format';
 import { IconArrowDownRight, IconArrowUpRight, IconEye } from '../ui/icons';
 import type { ResolvedTheme } from '../ui/theme';
+import type { TxnView } from './TransactionsTable';
 
 const CHART_THEME = {
   light: {
@@ -76,7 +77,7 @@ export function Dashboard({
   categories: Category[];
   settings: Settings;
   onSettingsChange: () => Promise<void>;
-  onViewCategory: (categoryId: string | null) => void;
+  onViewCategory: (view: Omit<TxnView, 'nonce'>) => void;
   theme: ResolvedTheme;
 }) {
   const owners = ownersList(accounts);
@@ -181,7 +182,7 @@ function OverviewView({
   fullRange: { start: string; end: string };
   theme: ResolvedTheme;
   onPersist: (next: Settings) => Promise<void>;
-  onViewCategory: (categoryId: string | null) => void;
+  onViewCategory: (view: Omit<TxnView, 'nonce'>) => void;
 }) {
   const ct = CHART_THEME[theme];
   const tooltipStyle = {
@@ -405,7 +406,16 @@ function OverviewView({
                 type="button"
                 className="icon-btn"
                 title="Посмотреть операции"
-                onClick={() => onViewCategory(c.categoryId)}
+                onClick={() =>
+                  onViewCategory({
+                    // «Внутренний перевод» — это не категория конкретных операций, а
+                    // динамический признак, поэтому открываем его особым фильтром.
+                    categoryId: c.categoryId === 'internal' ? undefined : c.categoryId,
+                    internal: c.categoryId === 'internal',
+                    owners: settings.selectedOwners,
+                    period,
+                  })
+                }
               >
                 <IconEye />
               </button>

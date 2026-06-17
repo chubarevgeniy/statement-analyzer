@@ -237,11 +237,16 @@ export function analyze(
 
     const cat = catId !== UNCATEGORIZED ? catById.get(catId) : undefined;
 
-    if (cat?.kind === 'savings') {
-      savingsContributions += -t.eurAmount;
-    }
-
     allCat.set(catId, (allCat.get(catId) ?? 0) + t.eurAmount);
+
+    if (cat?.kind === 'savings') {
+      // Вложения/изъятия из инвестиций — это не доход и не расход, а перемещение
+      // средств. Учитываем их ТОЛЬКО как чистый вклад в накопления, независимо от
+      // флажка исключения. Иначе при включении категории сумма двоилась бы:
+      // она попадала бы и в «Изменение кэша» (через расход), и в «В инвестиции».
+      savingsContributions += -t.eurAmount;
+      continue;
+    }
 
     if (excluded.has(catId)) continue;
 
