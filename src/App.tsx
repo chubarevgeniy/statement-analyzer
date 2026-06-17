@@ -3,7 +3,7 @@ import { useAppData } from './ui/useAppData';
 import { useTheme } from './ui/theme';
 import { ImportPanel } from './components/ImportPanel';
 import { Dashboard } from './components/Dashboard';
-import { TransactionsTable } from './components/TransactionsTable';
+import { TransactionsTable, type TxnView } from './components/TransactionsTable';
 import { SettingsPanel } from './components/SettingsPanel';
 import { IconDashboard, IconImport, IconList, IconSettings } from './ui/icons';
 
@@ -27,10 +27,10 @@ export default function App() {
   const data = useAppData();
   const theme = useTheme();
   const [tab, setTab] = useState<Tab>('dashboard');
-  const [categoryFilter, setCategoryFilter] = useState<string | null | undefined>(undefined);
+  const [txnView, setTxnView] = useState<TxnView | null>(null);
 
-  function goToCategory(categoryId: string | null) {
-    setCategoryFilter(categoryId);
+  function goToCategory(view: Omit<TxnView, 'nonce'>) {
+    setTxnView({ ...view, nonce: Date.now() });
     setTab('transactions');
   }
 
@@ -48,43 +48,52 @@ export default function App() {
           <div className="screen">
             <p className="muted">Загрузка…</p>
           </div>
-        ) : tab === 'dashboard' ? (
-          <Dashboard
-            txns={data.txns}
-            accounts={data.accounts}
-            categories={data.categories}
-            settings={data.settings}
-            onSettingsChange={data.reload}
-            onViewCategory={goToCategory}
-            theme={theme.resolved}
-          />
-        ) : tab === 'import' ? (
-          <ImportPanel
-            categories={data.categories}
-            accounts={data.accounts}
-            settings={data.settings}
-            onImported={data.reload}
-          />
-        ) : tab === 'transactions' ? (
-          <TransactionsTable
-            txns={data.txns}
-            accounts={data.accounts}
-            categories={data.categories}
-            settings={data.settings}
-            onChange={data.reload}
-            presetCategoryId={categoryFilter}
-          />
         ) : (
-          <SettingsPanel
-            categories={data.categories}
-            mappings={data.mappings}
-            accounts={data.accounts}
-            statements={data.statements}
-            settings={data.settings}
-            onChange={data.reload}
-            themeMode={theme.mode}
-            onThemeModeChange={theme.setMode}
-          />
+          // Все вкладки смонтированы постоянно и лишь скрываются — так состояние
+          // (фильтры, выбранный период и пр.) не сбрасывается при переключении.
+          <>
+            <div hidden={tab !== 'dashboard'}>
+              <Dashboard
+                txns={data.txns}
+                accounts={data.accounts}
+                categories={data.categories}
+                settings={data.settings}
+                onSettingsChange={data.reload}
+                onViewCategory={goToCategory}
+                theme={theme.resolved}
+              />
+            </div>
+            <div hidden={tab !== 'import'}>
+              <ImportPanel
+                categories={data.categories}
+                accounts={data.accounts}
+                settings={data.settings}
+                onImported={data.reload}
+              />
+            </div>
+            <div hidden={tab !== 'transactions'}>
+              <TransactionsTable
+                txns={data.txns}
+                accounts={data.accounts}
+                categories={data.categories}
+                settings={data.settings}
+                onChange={data.reload}
+                view={txnView}
+              />
+            </div>
+            <div hidden={tab !== 'settings'}>
+              <SettingsPanel
+                categories={data.categories}
+                mappings={data.mappings}
+                accounts={data.accounts}
+                statements={data.statements}
+                settings={data.settings}
+                onChange={data.reload}
+                themeMode={theme.mode}
+                onThemeModeChange={theme.setMode}
+              />
+            </div>
+          </>
         )}
       </main>
 

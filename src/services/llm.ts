@@ -25,6 +25,19 @@ function normalizeBaseUrl(url: string): string {
   return url.trim().replace(/\/+$/, '');
 }
 
+// Системный промпт. Директива «/no_think» отключает рассуждения у reasoning-моделей
+// (напр. Qwen3 в Ollama); прочие модели игнорируют её как обычный текст.
+const SYSTEM_PROMPT =
+  'Ты аккуратный помощник по финансам. Отвечаешь только JSON, без рассуждений. /no_think';
+
+/** Убирает блоки рассуждений (<think>…</think>) у reasoning-моделей перед разбором JSON. */
+function stripThinking(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, '') // закрытые блоки
+    .replace(/^[\s\S]*?<\/think>/i, '') // обрезанный/незакрытый ведущий блок
+    .trim();
+}
+
 /** Проверка доступности эндпоинта (список моделей). */
 export async function pingLlm(config: LlmConfig): Promise<{ ok: boolean; message: string }> {
   const base = normalizeBaseUrl(config.baseUrl);
@@ -196,14 +209,14 @@ export async function suggestSingleCategoryLlm(
       model: config.model,
       temperature: 0,
       messages: [
-        { role: 'system', content: 'Ты аккуратный помощник по финансам. Отвечаешь только JSON.' },
+        { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: buildSingleItemPrompt(item, categories, examples) },
       ],
     }),
   });
   if (!res.ok) throw new Error(`Ошибка ИИ: HTTP ${res.status}`);
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  const content = data.choices?.[0]?.message?.content ?? '';
+  const content = stripThinking(data.choices?.[0]?.message?.content ?? '');
   const parsed = extractJsonObject(content) as { categoryId?: string | null };
 
   const id = parsed.categoryId;
@@ -235,14 +248,14 @@ export async function suggestCategoriesLlm(
       model: config.model,
       temperature: 0,
       messages: [
-        { role: 'system', content: 'Ты аккуратный помощник по финансам. Отвечаешь только JSON.' },
+        { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: buildPrompt(items, categories) },
       ],
     }),
   });
   if (!res.ok) throw new Error(`Ошибка ИИ: HTTP ${res.status}`);
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  const content = data.choices?.[0]?.message?.content ?? '';
+  const content = stripThinking(data.choices?.[0]?.message?.content ?? '');
   const parsed = extractJsonArray(content) as { key?: string; categoryId?: string | null }[];
 
   for (const row of parsed) {
