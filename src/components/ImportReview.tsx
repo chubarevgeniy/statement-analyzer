@@ -196,6 +196,11 @@ function CategoryStep({
   const [aiResult, setAiResult] = useState<string | null | undefined>(undefined);
   const [aiLoading, setAiLoading] = useState(false);
 
+  // Reset aiResult when item changes
+  useEffect(() => {
+    setAiResult(undefined);
+  }, [item.key]);
+
   const selectedExamples = useMemo(() => {
     const result: Record<string, string[]> = {};
     if (!categories) return result;
@@ -214,23 +219,36 @@ function CategoryStep({
   }, [categories, examples, choices, unknownKeys]);
 
   useEffect(() => {
-    if (!llmConfig || aiResult !== undefined || aiLoading) return;
+    if (!llmConfig || aiResult !== undefined) return;
+    const controller = new AbortController();
     setAiLoading(true);
+
     suggestSingleCategoryLlm(
       { key: item.key, description: item.sampleDescription, amount: item.sampleAmount, currency: item.sampleCurrency },
       categories,
       selectedExamples,
-      llmConfig
+      llmConfig,
+      controller.signal
     )
       .then((res) => {
+        if (controller.signal.aborted) return;
         setAiResult(res);
       })
       .catch((e) => {
-        console.error('AI Error:', e);
-        setAiResult(null);
+        if (controller.signal.aborted) return;
+        if (e.name !== 'AbortError') {
+          console.error('AI Error:', e);
+          setAiResult(null);
+        }
       })
-      .finally(() => setAiLoading(false));
-  }, [item.key, llmConfig, categories, examples, aiResult, aiLoading, item.sampleDescription, item.sampleAmount, item.sampleCurrency]);
+      .finally(() => {
+        if (controller.signal.aborted) return;
+        setAiLoading(false);
+      });
+
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.key, llmConfig, aiResult, item.sampleDescription, item.sampleAmount, item.sampleCurrency]);
 
   // Категории-подсказки (совпадающие по виду) — вперёд.
   const sorted = useMemo(() => {
