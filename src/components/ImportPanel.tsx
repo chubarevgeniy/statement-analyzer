@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react';
 import { parseFile } from '../parsers';
 import { commitImport, prepareImport, type ImportPrep, type UnknownKey } from '../services/import';
 import { lookupRate } from '../services/fx';
-import { getMappings, putCategory } from '../db/categoriesDb';
+import { putCategory } from '../db/categoriesDb';
+import { getAllTxns } from '../db/transactionsDb';
 import { allOwners } from '../services/internalTransfers';
+import type { ExampleTxn } from '../services/llm';
 import type { Account, Category, CategoryKind, Settings } from '../types';
 import { ownerLabel } from '../ui/format';
 import { IconClose, IconImport } from '../ui/icons';
@@ -21,7 +23,7 @@ interface PendingResolution {
   preps: ImportPrep[];
   unknownKeys: UnknownKey[];
   fxNeeds: FxNeedRow[];
-  examples: Record<string, string[]>;
+  examples: Record<string, ExampleTxn[]>;
 }
 
 const AUTO_OWNER = '__auto__';
@@ -142,14 +144,16 @@ export function ImportPanel({
       }),
     );
 
-    let examples: Record<string, string[]> = {};
+    let examples: Record<string, ExampleTxn[]> = {};
     if (llmConfig && unknownKeys.length > 0) {
-      const mappings = await getMappings();
-      for (const m of mappings) {
-        if (!examples[m.categoryId]) examples[m.categoryId] = [];
-        if (examples[m.categoryId].length < 5) {
-          examples[m.categoryId].push(m.key);
-        }
+      const allTxns = await getAllTxns();
+      for (const t of allTxns) {
+        if (!t.categoryId) continue;
+        if (!examples[t.categoryId]) examples[t.categoryId] = [];
+        examples[t.categoryId].push({
+          description: t.counterpartyName ?? t.rawDescription,
+          amount: t.amount,
+        });
       }
     }
 
