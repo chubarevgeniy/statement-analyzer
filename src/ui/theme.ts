@@ -16,7 +16,7 @@ function resolve(mode: ThemeMode): ResolvedTheme {
 function apply(resolved: ResolvedTheme) {
   document.documentElement.dataset.theme = resolved;
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', resolved === 'dark' ? '#0a0b10' : '#f1f3f8');
+  if (meta) meta.setAttribute('content', resolved === 'dark' ? '#000000' : '#f4f4f4');
 }
 
 export function useTheme(): { mode: ThemeMode; resolved: ResolvedTheme; setMode: (m: ThemeMode) => void } {
