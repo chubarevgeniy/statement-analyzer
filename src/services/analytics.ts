@@ -212,28 +212,38 @@ export function analyze(
   const monthlyMap = new Map<string, { income: number; expense: number }>();
   let txCount = 0;
 
+  let netInternal = 0;
+  const monthlyInternal = new Map<string, number>();
+
   for (const t of ofOwners) {
     if (!inPeriod(t.bookingDate, opts.period)) continue;
     const internal = isInternal(t, cpOwner.get(t.id) ?? null, selectedSet);
+
+    let catId = t.categoryId ?? UNCATEGORIZED;
     if (internal) {
-      internalVolume += Math.abs(t.eurAmount);
+      internalVolume += t.eurAmount > 0 ? t.eurAmount : 0;
+      if (catId === UNCATEGORIZED) {
+        catId = 'internal';
+      }
+
+      allCat.set(catId, (allCat.get(catId) ?? 0) + t.eurAmount);
+      if (!excluded.has(catId)) {
+        netInternal += t.eurAmount;
+        const month = t.bookingDate.slice(0, 7);
+        monthlyInternal.set(month, (monthlyInternal.get(month) ?? 0) + t.eurAmount);
+      }
       continue;
     }
 
-    const catId = t.categoryId ?? UNCATEGORIZED;
-    const cat = t.categoryId ? catById.get(t.categoryId) : undefined;
+    const cat = catId !== UNCATEGORIZED ? catById.get(catId) : undefined;
 
-    // Чистый вклад в накопления/инвестиции: оттоки минус возвраты.
-    // Так покупка/пополнение увеличивает метрику, а продажа/вывод — уменьшает,
-    // поэтому при активной торговле сумма не раздувается оборотом.
     if (cat?.kind === 'savings') {
       savingsContributions += -t.eurAmount;
     }
 
-    // Сумма по всем категориям (для переключателей), знаковая.
     allCat.set(catId, (allCat.get(catId) ?? 0) + t.eurAmount);
 
-    if (excluded.has(catId)) continue; // исключено из дохода/расхода
+    if (excluded.has(catId)) continue;
 
     txCount++;
     const month = t.bookingDate.slice(0, 7);
@@ -250,6 +260,24 @@ export function analyze(
     monthlyMap.set(month, mp);
   }
 
+  if (netInternal > 0) {
+    income += netInternal;
+    incomeCat.set('internal', (incomeCat.get('internal') ?? 0) + netInternal);
+  } else if (netInternal < 0) {
+    expense += -netInternal;
+    expenseCat.set('internal', (expenseCat.get('internal') ?? 0) + -netInternal);
+  }
+
+  for (const [month, net] of monthlyInternal.entries()) {
+    const mp = monthlyMap.get(month) ?? { income: 0, expense: 0 };
+    if (net > 0) {
+      mp.income += net;
+    } else if (net < 0) {
+      mp.expense += -net;
+    }
+    monthlyMap.set(month, mp);
+  }
+
   const toTotals = (m: Map<string, number>, abs = true): CategoryTotal[] =>
     Array.from(m.entries())
       .map(([id, amount]) => {
@@ -261,7 +289,7 @@ export function analyze(
           amount: abs ? Math.abs(amount) : amount,
         };
       })
-      .sort((a, b) => b.amount - a.amount);
+      .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
 
   const months = Array.from(monthlyMap.keys()).sort();
   let cum = 0;
@@ -280,7 +308,7 @@ export function analyze(
     internalVolume,
     expenseByCategory: toTotals(expenseCat),
     incomeByCategory: toTotals(incomeCat),
-    allCategoryTotals: toTotals(allCat),
+    allCategoryTotals: toTotals(allCat, false),
     monthly,
     txCount,
   };
