@@ -3,6 +3,7 @@ import * as pdfjs from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { ParseResult } from './types';
 import * as deutscheBank from './deutscheBank';
+import * as deutscheBank2023 from './deutscheBank2023';
 import * as tradeRepublic from './tradeRepublic';
 import * as tradeRepublicCsv from './tradeRepublicCsv';
 import * as revolut from './revolut';
@@ -42,7 +43,9 @@ export async function extractText(file: ArrayBuffer): Promise<string> {
 
 // Текстовые парсеры (PDF и CSV дают текст). CSV ставим первым: его заголовок
 // опознаётся однозначно и не пересекается с PDF-форматами.
-const PARSERS = [tradeRepublicCsv, deutscheBank, tradeRepublic, revolut];
+// deutscheBank2023 перед deutscheBank: его detect() требует закодированный IBAN,
+// что не пересекается с обычным форматом.
+const PARSERS = [tradeRepublicCsv, deutscheBank2023, deutscheBank, tradeRepublic, revolut];
 
 /** Определяет банк и парсит текст выписки. Бросает ошибку, если формат неизвестен. */
 export function parseStatement(text: string): ParseResult {

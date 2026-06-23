@@ -8,7 +8,8 @@ import { isoDate, normalizeIban, parseUsAmount, toCents, fromCents } from './uti
 // якорями по регулярке, а не по строкам.
 
 export function detect(text: string): boolean {
-  return /Deutsche Bank AG/i.test(text) && /Account statement from/i.test(text);
+  return /Deutsche Bank AG/i.test(text) &&
+    (/Account statement from/i.test(text) || /Account settlement/i.test(text));
 }
 
 // Сумма со знаком: захватываем знак и число.
@@ -36,9 +37,30 @@ export function parse(text: string): ParseResult {
   const periodStart = periodMatch ? isoDate(+periodMatch[3], +periodMatch[2], +periodMatch[1]) : undefined;
   const periodEnd = periodMatch ? isoDate(+periodMatch[6], +periodMatch[5], +periodMatch[4]) : undefined;
 
-  const openingMatch = text.match(/Previous balance[\s\S]*?([+-])\s?(\d[\d,]*\.\d{2})\s*EUR/);
+  // Квартальная выписка (Account settlement) — без транзакций, только баланс.
+  if (/Account settlement/i.test(text)) {
+    const balMatch =
+      text.match(/Balance as at[^E\d]*EUR\s*([+-])\s*([\d,]+\.\d{2})/) ||
+      text.match(/([+-])\s*([\d,]+\.\d{2})\s*EUR/);
+    const balance = balMatch ? parseUsAmount(balMatch[1] + balMatch[2]) : undefined;
+    return {
+      account: { bank: 'deutsche_bank', ibans: iban ? [iban] : [], holderName },
+      transactions: [],
+      periodStart,
+      periodEnd,
+      closingBalance: balance,
+    };
+  }
+
+  // Поддерживаем оба формата: "AMOUNT EUR" (старый) и "EUR + AMOUNT" (новый).
+  const openingMatch =
+    text.match(/Previous balance[\s\S]{0,300}?EUR\s*([+-])\s*([\d,]+\.\d{2})/) ||
+    text.match(/Previous balance[\s\S]{0,300}?([+-])\s*([\d,]+\.\d{2})\s*EUR/);
   const opening = openingMatch ? parseUsAmount(openingMatch[1] + openingMatch[2]) : null;
-  const closingMatch = text.match(/New balance[\s\S]*?([+-])\s?(\d[\d,]*\.\d{2})\s*EUR/);
+
+  const closingMatch =
+    text.match(/New balance[\s\S]{0,200}?EUR\s*([+-])\s*([\d,]+\.\d{2})/) ||
+    text.match(/New balance[\s\S]{0,200}?([+-])\s*([\d,]+\.\d{2})\s*EUR/);
   const closing = closingMatch ? parseUsAmount(closingMatch[1] + closingMatch[2]) : undefined;
 
   // Собираем все денежные якоря.
@@ -46,12 +68,13 @@ export function parse(text: string): ParseResult {
   let m: RegExpExecArray | null;
   AMOUNT_G.lastIndex = 0;
   while ((m = AMOUNT_G.exec(text))) {
+    const before = text.slice(Math.max(0, m.index - 10), m.index);
     const after = text.slice(m.index + m[0].length, m.index + m[0].length + 4);
     anchors.push({
       start: m.index,
       end: m.index + m[0].length,
       amount: parseUsAmount(m[1] + m[2]),
-      isBalance: /^\s*EUR/.test(after),
+      isBalance: /EUR\s*$/.test(before) || /^\s*EUR/.test(after),
     });
   }
 
