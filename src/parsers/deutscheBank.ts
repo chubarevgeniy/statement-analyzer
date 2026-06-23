@@ -8,8 +8,7 @@ import { isoDate, normalizeIban, parseUsAmount, toCents, fromCents } from './uti
 // якорями по регулярке, а не по строкам.
 
 export function detect(text: string): boolean {
-  return /Deutsche Bank AG/i.test(text) &&
-    (/Account statement from/i.test(text) || /Account settlement/i.test(text));
+  return /Deutsche Bank AG/i.test(text) && /Account statement from/i.test(text);
 }
 
 // Сумма со знаком: захватываем знак и число.
@@ -36,21 +35,6 @@ export function parse(text: string): ParseResult {
   const periodMatch = text.match(/from\s+(\d{2})\.(\d{2})\.(\d{4})\s+to\s+(\d{2})\.(\d{2})\.(\d{4})/);
   const periodStart = periodMatch ? isoDate(+periodMatch[3], +periodMatch[2], +periodMatch[1]) : undefined;
   const periodEnd = periodMatch ? isoDate(+periodMatch[6], +periodMatch[5], +periodMatch[4]) : undefined;
-
-  // Квартальная выписка (Account settlement) — без транзакций, только баланс.
-  if (/Account settlement/i.test(text)) {
-    const balMatch =
-      text.match(/Balance as at[^E\d]*EUR\s*([+-])\s*([\d,]+\.\d{2})/) ||
-      text.match(/([+-])\s*([\d,]+\.\d{2})\s*EUR/);
-    const balance = balMatch ? parseUsAmount(balMatch[1] + balMatch[2]) : undefined;
-    return {
-      account: { bank: 'deutsche_bank', ibans: iban ? [iban] : [], holderName },
-      transactions: [],
-      periodStart,
-      periodEnd,
-      closingBalance: balance,
-    };
-  }
 
   // Поддерживаем оба формата: "AMOUNT EUR" (старый) и "EUR + AMOUNT" (новый).
   const openingMatch =
